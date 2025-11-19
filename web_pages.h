@@ -149,7 +149,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
       <button class="swatch" id="z0b_color" data-value="#0000FF" style="background:#0000FF;color:#fff">#0000FF</button>
     </div>
     <div class="cardNote" style="grid-column:1/-1">
-      BLEND:<br>B replaces A only where B ≠ black;  If A+B off → solid color A.
+      BLEND:<br>B replaces A where B ≠ black. If both A+B are OFF → zone is dark.
     </div>
   </div>
 </details>
@@ -227,7 +227,7 @@ function hsvToRgb(h,s,v){h/=60;let c=v*s,x=c*(1-Math.abs(h%2-1)),m=v-c;let r=0,g
   else if(3<=h&&h<4){g=x;b=c;}else if(4<=h&&h<5){r=x;b=c;}else{r=c;b=x;}
   return {r:Math.round((r+m)*255),g:Math.round((g+m)*255),b:Math.round((b+m)*255)};}
 
-function optHtml(sel){const opts=['Off','Plasma','ArcFlicker','PowerPulse','HaloBreath','Breathe','Lightning','Aurora'];
+function optHtml(sel){const opts=['Off','On','Plasma','ArcFlicker','PowerPulse','HaloBreath','Breathe','Lightning','Aurora'];
   return opts.map(o=>'<option'+(o===sel?' selected':'')+'>'+o+'</option>').join('');}
 
 function clampHex(txt){let t=txt.toUpperCase();if(!t.startsWith('#'))t='#'+t; if(t.length>7)t=t.slice(0,7); return t;}
