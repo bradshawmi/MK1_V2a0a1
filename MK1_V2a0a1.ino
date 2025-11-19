@@ -732,16 +732,16 @@ static inline CRGB effectSample(uint8_t eff, const CRGB &base,
 }
 case E_ArcFlicker:{
 
-      uint32_t now = micros();
+      uint32_t now = millis();
 
       uint16_t p = period;
       if (p < 10)   p = 10;
       if (p > 1000) p = 1000;
-      const uint32_t reqMin = 100;
-      const uint32_t reqMax = 1000000;
-      uint32_t usReq = reqMin + ((uint32_t)(p - 10) * (reqMax - reqMin)) / 990U;
+      const uint16_t reqMin = 7;
+      const uint16_t reqMax = 1000;
+      uint32_t msReq = reqMin + ((uint32_t)(p - 10) * (reqMax - reqMin)) / 990U;
 
-      uint8_t phase = (uint8_t)(((now % usReq) * 256UL) / (usReq ? usReq : 1));
+      uint8_t phase = (uint8_t)(((now % msReq) * 256UL) / (msReq ? msReq : 1));
       phase = (uint8_t)(phase + (uint8_t)((i * 7u) ^ (seedMix * 13u)));
 
       int16_t s1 = (int16_t)sin8(phase) - 128;
@@ -750,7 +750,7 @@ case E_ArcFlicker:{
       int16_t env = s1 + ((s3 * 90) >> 7) + ((s5 * 50) >> 7);
 
       int16_t grain = (int16_t)random8() - 128;
-      uint8_t hfPhase = (uint8_t)(((now % 100UL) * 256UL) / 100UL);
+      uint8_t hfPhase = (uint8_t)(((now % 7UL) * 256UL) / 7UL);
       hfPhase = (uint8_t)(hfPhase + (uint8_t)(i * 11u + seedMix * 23u));
       int16_t hf = (int16_t)sin8(hfPhase) - 128;
       grain += (hf * 24) >> 7;
