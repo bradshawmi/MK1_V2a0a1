@@ -149,7 +149,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
       <button class="swatch" id="z0b_color" data-value="#0000FF" style="background:#0000FF;color:#fff">#0000FF</button>
     </div>
     <div class="cardNote" style="grid-column:1/-1">
-      BLEND:<br>B replaces A where B ≠ black. If both A+B are OFF → zone is dark.
+      BLEND:<br>B overlays A where B ≠ OFF. If A+B are OFF → zone is dark.
     </div>
   </div>
 </details>
