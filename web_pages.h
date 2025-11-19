@@ -701,7 +701,6 @@ setInterval(()=>{
 
   update();
 })();
-})();
 </script>
 <!-- LM_END HTML/JS -->
 </body>
