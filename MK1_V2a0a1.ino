@@ -735,11 +735,11 @@ case E_ArcFlicker:{
       uint32_t now = millis();
 
       uint16_t p = period;
-      if (p < 10)   p = 10;
-      if (p > 1000) p = 1000;
+      if (p < 200)   p = 200;
+      if (p > 4000) p = 4000;
       const uint16_t reqMin = 7;
-      const uint16_t reqMax = 1000;
-      uint32_t msReq = reqMin + ((uint32_t)(p - 10) * (reqMax - reqMin)) / 990U;
+      const uint16_t reqMax = 1500;
+      uint32_t msReq = reqMin + ((uint32_t)(p - 200) * (reqMax - reqMin)) / 3800U;
 
       uint8_t phase = (uint8_t)(((now % msReq) * 256UL) / (msReq ? msReq : 1));
       phase = (uint8_t)(phase + (uint8_t)((i * 7u) ^ (seedMix * 13u)));
@@ -755,8 +755,8 @@ case E_ArcFlicker:{
       int16_t hf = (int16_t)sin8(hfPhase) - 128;
       grain += (hf * 24) >> 7;
 
-      uint16_t alpha = (uint16_t)(1000 - p);
-      uint8_t mixQ8 = (uint8_t)(26 + (alpha * (218 - 26)) / 990U);
+      uint16_t alpha = (uint16_t)(4000 - p);
+      uint8_t mixQ8 = (uint8_t)(26 + (alpha * (218 - 26)) / 3800U);
       int16_t s = (int16_t)(((int32_t)(256 - mixQ8) * env + (int32_t)mixQ8 * grain) >> 8);
 
       const uint8_t A_min = 53;
