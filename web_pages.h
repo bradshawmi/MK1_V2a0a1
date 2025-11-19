@@ -350,19 +350,21 @@ function renderFavRow(){
   for(let i=0;i<9;i++){
     const b=document.createElement('button');
     b.className='fav'; b.style.background=favs[i];
-    let pressTimer=null,long=false,pressStart=0,checkInterval=null,vibrated=false;
+    let pressTimer=null,long=false,pressStart=0,rafId=null,vibrated=false;
     const clear=()=>{ 
       if(pressTimer){ clearTimeout(pressTimer); pressTimer=null; }
-      if(checkInterval){ clearInterval(checkInterval); checkInterval=null; }
+      if(rafId){ cancelAnimationFrame(rafId); rafId=null; }
       pressStart=0; vibrated=false;
     };
+    const checkLongPress=()=>{
+      if(!vibrated && performance.now()-pressStart>=1000){
+        vibrated=true; vibrate(50);
+      }
+      if(pressTimer && !vibrated) rafId=requestAnimationFrame(checkLongPress);
+    };
     const onDown=(e)=>{ e.preventDefault(); long=false; clear();
-      pressStart=Date.now(); vibrated=false;
-      checkInterval=setInterval(()=>{
-        if(!vibrated && Date.now()-pressStart>=1000){
-          vibrated=true; vibrate(50);
-        }
-      },50);
+      pressStart=performance.now(); vibrated=false;
+      rafId=requestAnimationFrame(checkLongPress);
       pressTimer=setTimeout(()=>{ long=true;
         const hex=hexFromHSV();
         fetch('/setFav',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idx:i,hex})})
@@ -378,9 +380,9 @@ function renderFavRow(){
       }
       clearLiveThrottle(); live();
     }};
-    b.addEventListener('mousedown',onDown); b.addEventListener('touchstart',onDown,{passive:false});
-    b.addEventListener('mouseup',onUp); b.addEventListener('mouseleave',clear);
-    b.addEventListener('touchend',onUp); b.addEventListener('touchcancel',clear);
+    b.addEventListener('pointerdown',onDown);
+    b.addEventListener('pointerup',onUp); b.addEventListener('pointercancel',clear);
+    b.addEventListener('contextmenu',(e)=>e.preventDefault());
     row.appendChild(b);
   }
 }
@@ -458,28 +460,28 @@ function renderPresets(){
     btn.style.background = face; btn.style.color = (face==='#EEEEEE')?'#111':(contrastText(face));
     btn.textContent = (i+1).toString();
     if (presetMeta.active === i) btn.classList.add('presetActive');
-    let t=null, long=false, pressStart=0, checkInterval=null, vibrated=false;
+    let t=null, long=false, pressStart=0, rafId=null, vibrated=false;
     const clear=()=>{ 
       if(t){ clearTimeout(t); t=null; }
-      if(checkInterval){ clearInterval(checkInterval); checkInterval=null; }
+      if(rafId){ cancelAnimationFrame(rafId); rafId=null; }
       pressStart=0; vibrated=false;
     };
+    const checkLongPress=()=>{
+      if(!vibrated && performance.now()-pressStart>=1000){
+        vibrated=true; vibrate(50);
+      }
+      if(t && !vibrated) rafId=requestAnimationFrame(checkLongPress);
+    };
     const onDown=(e)=>{ e.preventDefault(); long=false; clear();
-      pressStart=Date.now(); vibrated=false;
-      checkInterval=setInterval(()=>{
-        if(!vibrated && Date.now()-pressStart>=1000){
-          vibrated=true; vibrate(50);
-        }
-      },50);
+      pressStart=performance.now(); vibrated=false;
+      rafId=requestAnimationFrame(checkLongPress);
       t=setTimeout(()=>{ long=true; doPresetSave(i, btn); }, 1000);
     };
     const onUp=()=>{ if(!t) return; clear(); if(!long) doPresetApply(i, btn); };
-    btn.addEventListener('mousedown',onDown);
-    btn.addEventListener('touchstart',onDown,{passive:false});
-    btn.addEventListener('mouseup',onUp);
-    btn.addEventListener('mouseleave',clear);
-    btn.addEventListener('touchend',onUp);
-    btn.addEventListener('touchcancel',clear);
+    btn.addEventListener('pointerdown',onDown);
+    btn.addEventListener('pointerup',onUp);
+    btn.addEventListener('pointercancel',clear);
+    btn.addEventListener('contextmenu',(e)=>e.preventDefault());
     grid.appendChild(btn);
   }
 }
