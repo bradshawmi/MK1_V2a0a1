@@ -586,7 +586,7 @@ static void addDebugf(const char* fmt, ...){
 
 static String colorToHex(const CRGB &c);
 static uint16_t sliderToPeriod(uint16_t s);
-void sampleBattery();
+static void sampleBattery();
 static void applyZoneEffects(const Zone &z);
 static void applyAllEffects();
 static void loadPrefs();
@@ -606,7 +606,7 @@ static uint16_t sliderToPeriod(uint16_t s){
   s = constrain(s,10,1000);
   return (uint16_t)map((int)s,10,1000,4000,200);
 }
-void sampleBattery() {
+static void sampleBattery() {
   uint32_t now = millis();
   if (now - batt.lastMs < BAT_SAMPLE_INTERVAL_MS) return;
   batt.lastMs = now;
