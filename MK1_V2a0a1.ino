@@ -20,7 +20,7 @@ static inline void auroraUpdate(uint8_t z, uint16_t speed);
 static inline CRGB auroraSample(uint8_t z, uint16_t iGlobal, uint8_t intensity);
 static inline uint8_t auroraHolesMask(uint8_t z, uint16_t iGlobal);
 
-static constexpr char BUILD_TAG[] = "v2a0b2";
+static constexpr char BUILD_TAG[] = "v2a0b3";
 
 enum DFPhase : uint8_t;
 struct DFState;
@@ -579,7 +579,7 @@ static void ensureRingLUTInited(){
   gRingLUTInited = true;
 }
 
-static PlasmaParams makePlasmaParams(uint16_t period, uint8_t intensity, uint16_t seedMix){
+static PlasmaParams makePlasmaParams(uint16_t period, uint8_t intensity, uint16_t seedMix, uint8_t masterBright){
   PlasmaParams p;
 
   float pMs = (float)period;
@@ -604,7 +604,8 @@ static PlasmaParams makePlasmaParams(uint16_t period, uint8_t intensity, uint16_
   p.time_bitshift = 5;
   p.hue_offset    = (uint8_t)(seedMix & 0xFF);
 
-  p.brightness = 1.0f;
+  float brightNorm = (float)masterBright / 255.0f;
+  p.brightness = 1.5f * brightNorm;
   return p;
 }
 
@@ -657,7 +658,8 @@ static CRGB plasmaSample(uint16_t iGlobal,
                          uint32_t nowMs,
                          uint16_t period,
                          uint8_t intensity,
-                         uint16_t seedMix)
+                         uint16_t seedMix,
+                         uint8_t masterBright)
 {
   ensureRingLUTInited();
 
@@ -666,7 +668,7 @@ static CRGB plasmaSample(uint16_t iGlobal,
   }
   const RingCoord &coord = gRingLUT[iGlobal];
 
-  PlasmaParams params = makePlasmaParams(period, intensity, seedMix);
+  PlasmaParams params = makePlasmaParams(period, intensity, seedMix, masterBright);
 
   float time_scaled = (float)nowMs * params.time_scale * 0.001f;
 
@@ -726,18 +728,18 @@ static inline CRGB effectSample(uint8_t eff, const CRGB &base,
   CHSV hsv = rgb2hsv_approximate(base);
   uint16_t seedHue = hsv.h;
   uint32_t now = millis();
-  return plasmaSample(i, now, period, intensity, seedHue);
+  return plasmaSample(i, now, period, intensity, seedHue, masterBrightness);
 }
 case E_ArcFlicker:{
 
       uint32_t now = millis();
 
       uint16_t p = period;
-      if (p < 10)   p = 10;
-      if (p > 1000) p = 1000;
-      const uint16_t reqMin = 10;
+      if (p < 200)   p = 200;
+      if (p > 4000) p = 4000;
+      const uint16_t reqMin = 7;
       const uint16_t reqMax = 1500;
-      uint32_t msReq = reqMin + ((uint32_t)(p - 10) * (reqMax - reqMin)) / 990U;
+      uint32_t msReq = reqMin + ((uint32_t)(p - 200) * (reqMax - reqMin)) / 3800U;
 
       uint8_t phase = (uint8_t)(((now % msReq) * 256UL) / (msReq ? msReq : 1));
       phase = (uint8_t)(phase + (uint8_t)((i * 7u) ^ (seedMix * 13u)));
@@ -748,13 +750,13 @@ case E_ArcFlicker:{
       int16_t env = s1 + ((s3 * 90) >> 7) + ((s5 * 50) >> 7);
 
       int16_t grain = (int16_t)random8() - 128;
-      uint8_t hfPhase = (uint8_t)(((now % 10UL) * 256UL) / 10UL);
+      uint8_t hfPhase = (uint8_t)(((now % 7UL) * 256UL) / 7UL);
       hfPhase = (uint8_t)(hfPhase + (uint8_t)(i * 11u + seedMix * 23u));
       int16_t hf = (int16_t)sin8(hfPhase) - 128;
       grain += (hf * 24) >> 7;
 
-      uint16_t alpha = (uint16_t)(1000 - p);
-      uint8_t mixQ8 = (uint8_t)(26 + (alpha * (218 - 26)) / 990U);
+      uint16_t alpha = (uint16_t)(4000 - p);
+      uint8_t mixQ8 = (uint8_t)(26 + (alpha * (218 - 26)) / 3800U);
       int16_t s = (int16_t)(((int32_t)(256 - mixQ8) * env + (int32_t)mixQ8 * grain) >> 8);
 
       const uint8_t A_min = 53;
