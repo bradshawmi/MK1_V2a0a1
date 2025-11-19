@@ -350,19 +350,15 @@ function renderFavRow(){
   for(let i=0;i<9;i++){
     const b=document.createElement('button');
     b.className='fav'; b.style.background=favs[i];
-    let pressTimer=null,long=false,pressStart=0,checkInterval=null,vibrated=false;
+    let pressTimer=null,long=false,vibrateTimer=null;
     const clear=()=>{ 
       if(pressTimer){ clearTimeout(pressTimer); pressTimer=null; }
-      if(checkInterval){ clearInterval(checkInterval); checkInterval=null; }
-      pressStart=0; vibrated=false;
+      if(vibrateTimer){ clearTimeout(vibrateTimer); vibrateTimer=null; }
     };
     const onDown=(e)=>{ e.preventDefault(); long=false; clear();
-      pressStart=Date.now(); vibrated=false;
-      checkInterval=setInterval(()=>{
-        if(!vibrated && Date.now()-pressStart>=1000){
-          vibrated=true; vibrate(50);
-        }
-      },50);
+      // Call vibrate synchronously in gesture handler - required for Firefox
+      if(navigator.vibrate){ try{ navigator.vibrate(1); }catch(err){} }
+      vibrateTimer=setTimeout(()=>{ if(navigator.vibrate){ try{ navigator.vibrate(50); }catch(err){} } },1000);
       pressTimer=setTimeout(()=>{ long=true;
         const hex=hexFromHSV();
         fetch('/setFav',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idx:i,hex})})
@@ -458,19 +454,15 @@ function renderPresets(){
     btn.style.background = face; btn.style.color = (face==='#EEEEEE')?'#111':(contrastText(face));
     btn.textContent = (i+1).toString();
     if (presetMeta.active === i) btn.classList.add('presetActive');
-    let t=null, long=false, pressStart=0, checkInterval=null, vibrated=false;
+    let t=null, long=false, vibrateTimer=null;
     const clear=()=>{ 
       if(t){ clearTimeout(t); t=null; }
-      if(checkInterval){ clearInterval(checkInterval); checkInterval=null; }
-      pressStart=0; vibrated=false;
+      if(vibrateTimer){ clearTimeout(vibrateTimer); vibrateTimer=null; }
     };
     const onDown=(e)=>{ e.preventDefault(); long=false; clear();
-      pressStart=Date.now(); vibrated=false;
-      checkInterval=setInterval(()=>{
-        if(!vibrated && Date.now()-pressStart>=1000){
-          vibrated=true; vibrate(50);
-        }
-      },50);
+      // Call vibrate synchronously in gesture handler - required for Firefox
+      if(navigator.vibrate){ try{ navigator.vibrate(1); }catch(err){} }
+      vibrateTimer=setTimeout(()=>{ if(navigator.vibrate){ try{ navigator.vibrate(50); }catch(err){} } },1000);
       t=setTimeout(()=>{ long=true; doPresetSave(i, btn); }, 1000);
     };
     const onUp=()=>{ if(!t) return; clear(); if(!long) doPresetApply(i, btn); };
