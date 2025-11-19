@@ -394,6 +394,7 @@ struct BatterySampler {
 
 enum Effect : uint8_t {
   E_Off = 0,
+  E_On,
   E_Candle,
   E_ArcFlicker,
   E_PowerPulse,
@@ -404,21 +405,22 @@ enum Effect : uint8_t {
 };
 
 static const char _E0[] PROGMEM = "Off";
-static const char _E1[] PROGMEM = "Plasma";
-static const char _E2[] PROGMEM = "ArcFlicker";
-static const char _E3[] PROGMEM = "PowerPulse";
-static const char _E4[] PROGMEM = "HaloBreath";
-static const char _E5[] PROGMEM = "Breathe";
-static const char _E6[] PROGMEM = "Lightning";
-static const char _E7[] PROGMEM = "Aurora";
+static const char _E1[] PROGMEM = "On";
+static const char _E2[] PROGMEM = "Plasma";
+static const char _E3[] PROGMEM = "ArcFlicker";
+static const char _E4[] PROGMEM = "PowerPulse";
+static const char _E5[] PROGMEM = "HaloBreath";
+static const char _E6[] PROGMEM = "Breathe";
+static const char _E7[] PROGMEM = "Lightning";
+static const char _E8[] PROGMEM = "Aurora";
 static const char* const EFFECT_NAMES[] PROGMEM = {
-  _E0,_E1,_E2,_E3,_E4,_E5,_E6,_E7
+  _E0,_E1,_E2,_E3,_E4,_E5,_E6,_E7,_E8
 };
 
 static Effect effectFromCString(const char* s){
   if (!s) return E_Off;
   char buf[16];
-  for (uint8_t i=0;i<8;i++){
+  for (uint8_t i=0;i<9;i++){
     strncpy_P(buf, (PGM_P)pgm_read_ptr(&EFFECT_NAMES[i]), sizeof(buf)-1);
     buf[sizeof(buf)-1]='\0';
     if (strcmp(s, buf)==0) return (Effect)i;
@@ -426,7 +428,7 @@ static Effect effectFromCString(const char* s){
   return E_Off;
 }
 static void effectName(Effect e, char* out, size_t outlen){
-  if (e >= 8) e = E_Off;
+  if (e >= 9) e = E_Off;
   strncpy_P(out, (PGM_P)pgm_read_ptr(&EFFECT_NAMES[e]), outlen-1);
   out[outlen-1]='\0';
 }
@@ -718,6 +720,7 @@ static inline CRGB effectSample(uint8_t eff, const CRGB &base,
 {
   switch(eff){
     case E_Off: return CRGB::Black;
+    case E_On: return withIntensity(base, intensity);
 
     case E_Candle: {
   CHSV hsv = rgb2hsv_approximate(base);
@@ -833,17 +836,27 @@ static void applyZoneEffects(const Zone &z){
   const uint16_t pA = sliderToPeriod(z.speedA);
   const uint16_t pB = sliderToPeriod(z.speedB);
 
+  // If both effects are OFF, zone is dark
+  if (z.effectA == E_Off && z.effectB == E_Off) {
+    for (int i=z.startLed; i<=z.endLed; i++) {
+      leds[i] = CRGB::Black;
+    }
+    return;
+  }
+
+  // Apply effect A as base
   for (int i=z.startLed; i<=z.endLed; i++) {
     leds[i] = effectSample(z.effectA, z.colorA, pA, z.intensityA, i, 7);
   }
-  uint8_t eB = z.effectB;
-  bool bothOff = (z.effectA==E_Off && eB==E_Off);
-  for (int i=z.startLed; i<=z.endLed; i++){
-    if (bothOff){
-      leds[i] = withIntensity(z.colorA, z.intensityA);
-    } else {
-      CRGB over = effectSample(eB, z.colorB, pB, z.intensityB, i, 11);
-      if (over.r || over.g || over.b) leds[i] = over;
+  
+  // Apply effect B as overlay if it's not OFF
+  if (z.effectB != E_Off) {
+    for (int i=z.startLed; i<=z.endLed; i++){
+      CRGB over = effectSample(z.effectB, z.colorB, pB, z.intensityB, i, 11);
+      // B replaces A only where B produces a non-black color
+      if (over.r || over.g || over.b) {
+        leds[i] = over;
+      }
     }
   }
 }
