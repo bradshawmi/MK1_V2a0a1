@@ -579,7 +579,7 @@ static void ensureRingLUTInited(){
   gRingLUTInited = true;
 }
 
-static PlasmaParams makePlasmaParams(uint16_t period, uint8_t intensity, uint16_t seedMix){
+static PlasmaParams makePlasmaParams(uint16_t period, uint8_t intensity, uint16_t seedMix, uint8_t masterBright){
   PlasmaParams p;
 
   float pMs = (float)period;
@@ -604,7 +604,8 @@ static PlasmaParams makePlasmaParams(uint16_t period, uint8_t intensity, uint16_
   p.time_bitshift = 5;
   p.hue_offset    = (uint8_t)(seedMix & 0xFF);
 
-  p.brightness = 1.0f;
+  float brightNorm = (float)masterBright / 255.0f;
+  p.brightness = 1.5f * brightNorm;
   return p;
 }
 
@@ -657,7 +658,8 @@ static CRGB plasmaSample(uint16_t iGlobal,
                          uint32_t nowMs,
                          uint16_t period,
                          uint8_t intensity,
-                         uint16_t seedMix)
+                         uint16_t seedMix,
+                         uint8_t masterBright)
 {
   ensureRingLUTInited();
 
@@ -666,7 +668,7 @@ static CRGB plasmaSample(uint16_t iGlobal,
   }
   const RingCoord &coord = gRingLUT[iGlobal];
 
-  PlasmaParams params = makePlasmaParams(period, intensity, seedMix);
+  PlasmaParams params = makePlasmaParams(period, intensity, seedMix, masterBright);
 
   float time_scaled = (float)nowMs * params.time_scale * 0.001f;
 
@@ -726,7 +728,7 @@ static inline CRGB effectSample(uint8_t eff, const CRGB &base,
   CHSV hsv = rgb2hsv_approximate(base);
   uint16_t seedHue = hsv.h;
   uint32_t now = millis();
-  return plasmaSample(i, now, period, intensity, seedHue);
+  return plasmaSample(i, now, period, intensity, seedHue, masterBrightness);
 }
 case E_ArcFlicker:{
 
@@ -736,7 +738,7 @@ case E_ArcFlicker:{
       if (p < 10)   p = 10;
       if (p > 1000) p = 1000;
       const uint16_t reqMin = 10;
-      const uint16_t reqMax = 1500;
+      const uint16_t reqMax = 1000;
       uint32_t msReq = reqMin + ((uint32_t)(p - 10) * (reqMax - reqMin)) / 990U;
 
       uint8_t phase = (uint8_t)(((now % msReq) * 256UL) / (msReq ? msReq : 1));
