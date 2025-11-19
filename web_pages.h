@@ -232,7 +232,7 @@ function optHtml(sel){const opts=['Off','Plasma','ArcFlicker','PowerPulse','Halo
 
 function clampHex(txt){let t=txt.toUpperCase();if(!t.startsWith('#'))t='#'+t; if(t.length>7)t=t.slice(0,7); return t;}
 function contrastText(hex){ const {r,g,b}=hexToRgb(hex); const yiq=((r*299)+(g*587)+(b*114))/1000; return yiq>=128?'#000':'#fff'; }
-function vibrate(ms){}
+function vibrate(ms){ if(navigator.vibrate) navigator.vibrate(ms); }
 
 function collect(){
   let s={ master:parseInt(document.getElementById('master').value),
@@ -352,11 +352,12 @@ function renderFavRow(){
     b.className='fav'; b.style.background=favs[i];
     let pressTimer=null,long=false;
     const clear=()=>{ if(pressTimer){ clearTimeout(pressTimer); pressTimer=null; } };
-    const onDown=()=>{ long=false; clear();
+    const onDown=(e)=>{ e.preventDefault(); long=false; clear();
       pressTimer=setTimeout(()=>{ long=true;
+        vibrate(50);
         const hex=hexFromHSV();
         fetch('/setFav',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idx:i,hex})})
-          .then(()=>{ favs[i]=hex; b.style.background=hex; });
+          .then(()=>{ favs[i]=hex; b.style.background=hex; flashOnce(b); });
       },1000);
     };
     const onUp=()=>{ if(!pressTimer) return; clear(); if(!long){
@@ -368,7 +369,7 @@ function renderFavRow(){
       }
       clearLiveThrottle(); live();
     }};
-    b.addEventListener('mousedown',onDown); b.addEventListener('touchstart',onDown,{passive:true});
+    b.addEventListener('mousedown',onDown); b.addEventListener('touchstart',onDown,{passive:false});
     b.addEventListener('mouseup',onUp); b.addEventListener('mouseleave',clear);
     b.addEventListener('touchend',onUp); b.addEventListener('touchcancel',clear);
     row.appendChild(b);
@@ -450,10 +451,10 @@ function renderPresets(){
     if (presetMeta.active === i) btn.classList.add('presetActive');
     let t=null, long=false;
     const clear=()=>{ if(t){ clearTimeout(t); t=null; } };
-    const onDown=()=>{ long=false; clear(); t=setTimeout(()=>{ long=true; doPresetSave(i, btn); }, 1000); };
+    const onDown=(e)=>{ e.preventDefault(); long=false; clear(); t=setTimeout(()=>{ long=true; doPresetSave(i, btn); }, 1000); };
     const onUp=()=>{ if(!t) return; clear(); if(!long) doPresetApply(i, btn); };
     btn.addEventListener('mousedown',onDown);
-    btn.addEventListener('touchstart',onDown,{passive:true});
+    btn.addEventListener('touchstart',onDown,{passive:false});
     btn.addEventListener('mouseup',onUp);
     btn.addEventListener('mouseleave',clear);
     btn.addEventListener('touchend',onUp);
@@ -467,6 +468,7 @@ function setActivePresetButton(idx){
   [...grid.children].forEach((b,bi)=>{ if (bi===idx) b.classList.add('presetActive'); else b.classList.remove('presetActive'); });
 }
 function doPresetSave(idx, btn){
+  vibrate(50);
   const payload = collect();
   fetch('/presetSave',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idx, state:payload})})
     .then(r=>r.json()).then(j=>{
