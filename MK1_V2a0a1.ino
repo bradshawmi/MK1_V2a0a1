@@ -149,77 +149,8 @@ static inline CRGB PP_lightenWhiteKiss(const CRGB& base, uint8_t amt){
   return out;
 }
 
-static inline void PP_applyZoneWindow(CRGB* leds, uint16_t i0, uint16_t i1, uint32_t nowMs,
-                                      uint32_t onsetMs, uint8_t zoneGain){
-  if (nowMs < onsetMs) return;
-  uint32_t dt = nowMs - onsetMs;
-  uint16_t __pp_winWidth = PP.widthMs;
-  /* Z2 micro-dwell removed in v4c9w7 */
-{
-    const uint16_t __pp_visibleMinMs = 14;
-    if (PP.periodMs < 120 && __pp_winWidth < __pp_visibleMinMs) {
-      uint32_t __pp_w = __pp_visibleMinMs;
-      if (__pp_w > PP.periodMs) __pp_w = PP.periodMs;
-      __pp_winWidth = (uint16_t)__pp_w;
-    }
-  }
-  if (dt >= __pp_winWidth) return;
-
-  uint16_t width = PP.widthMs;
-  uint16_t dwell = (zoneGain == PP_ZONE_GAIN_Z3) ? PP.dwellZ3Ms : 0;
-  if (dwell > width) dwell = width;
-  uint16_t halfSpan = (uint16_t)((width > dwell) ? ((width - dwell) >> 1) : 0);
-  uint16_t riseMs = halfSpan;
-  uint16_t fallMs = halfSpan;
-
-  float envF = 0.0f;
-  if (riseMs == 0 && fallMs == 0){
-    envF = 1.0f;
-  } else if (dt < riseMs){
-    float x = (riseMs ? (float)dt / (float)riseMs : 1.0f);
-    envF = x*x*(3.0f - 2.0f*x);
-  } else if (dt < (uint32_t)riseMs + dwell){
-    envF = 1.0f;
-  } else if (dt < (uint32_t)riseMs + dwell + fallMs){
-    uint32_t d2 = dt - riseMs - dwell;
-    float x = (fallMs ? (float)d2 / (float)fallMs : 1.0f);
-    float s = x*x*(3.0f - 2.0f*x);
-    envF = 1.0f - s;
-  } else {
-    envF = 0.0f;
-  }
-  {
-    const uint16_t __pp_visibleMinMs = 14;
-    uint16_t __pp_effWidth = PP.widthMs;
-    if (PP.periodMs < 120 && __pp_effWidth < __pp_visibleMinMs) __pp_effWidth = __pp_visibleMinMs;
-    if (dt >= PP.widthMs && dt < __pp_effWidth) { envF = 1.0f; }
-  }
-  uint16_t peak = PP.peakMax;
-  uint16_t env = (uint16_t)((envF <= 0.0f) ? 0 : (envF >= 1.0f ? peak : (uint16_t)(envF * peak)));
-  uint8_t amt = (uint8_t)constrain((int)((env * zoneGain) >> 8), PP_INTENSITY_MIN, 255);
-
-  uint16_t feather = (uint16_t)max<uint16_t>(1, (uint16_t)(PP.widthMs / 10));
-  float fscale = 0.0f;
-  if (dt < feather) fscale = (float)dt / (float)feather;
-  else if (dt > PP.widthMs - feather) fscale = (float)(PP.widthMs - dt) / (float)feather;
-  if (fscale < 0.0f) fscale = 0.0f;
-  if (fscale > 1.0f) fscale = 1.0f;
-
-  uint8_t floorAmt = (uint8_t)((float)PP_MIN_BRIGHTEN_WH * fscale + 0.5f);
-if (PP.periodMs < 60) floorAmt = 0;
-
-  for (uint16_t i = i0; i <= i1; ++i){
-    CRGB base = leds[i];
-    CRGB out  = PP_lightenWhiteKiss(base, amt);
-    if (PP_lumaMax(base) >= PP_WHITE_LUMA_THRESH && floorAmt){
-      out.r = qadd8(out.r, floorAmt);
-      out.g = qadd8(out.g, floorAmt);
-      out.b = qadd8(out.b, floorAmt);
-    }
-    leds[i] = out;
-  }
-}
-
+// Note: PP_applyZoneWindow_from is the active implementation used by PP_draw.
+// Legacy PP_applyZoneWindow (in-place variant) has been removed as it was unused.
 static inline void PP_applyZoneWindow_from(const CRGB* __src, CRGB* __dst, uint16_t i0, uint16_t i1, uint32_t nowMs,
                                            uint32_t onsetMs, uint8_t zoneGain){
   if (nowMs < onsetMs) return;
