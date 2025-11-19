@@ -350,17 +350,27 @@ function renderFavRow(){
   for(let i=0;i<9;i++){
     const b=document.createElement('button');
     b.className='fav'; b.style.background=favs[i];
-    let pressTimer=null,long=false,pressStart=0,checkInterval=null,vibrated=false;
+    let pressTimer=null,long=false,pressStart=0,checkInterval=null;
+    // track whether we issued an immediate pulse (so we can cancel it if released early),
+    // and whether we've already done the long-press vibration
+    let initialPulsed=false,longVibrated=false;
     const clear=()=>{ 
       if(pressTimer){ clearTimeout(pressTimer); pressTimer=null; }
       if(checkInterval){ clearInterval(checkInterval); checkInterval=null; }
-      pressStart=0; vibrated=false;
+      // cancel any ongoing short vibration if appropriate
+      if(initialPulsed && !longVibrated && navigator.vibrate) try{ navigator.vibrate(0); }catch(e){}
+      pressStart=0; initialPulsed=false; longVibrated=false;
     };
     const onDown=(e)=>{ e.preventDefault(); long=false; clear();
-      pressStart=Date.now(); vibrated=false;
+      pressStart=Date.now(); initialPulsed=false; longVibrated=false;
+      // Immediate tiny pulse inside the gesture handler so browsers that require a user gesture
+      // will permit subsequent vibration calls from timers.
+      if(navigator.vibrate){
+        try{ navigator.vibrate(10); initialPulsed=true; }catch(err){ /* ignore */ }
+      }
       checkInterval=setInterval(()=>{
-        if(!vibrated && Date.now()-pressStart>=1000){
-          vibrated=true; vibrate(50);
+        if(!longVibrated && Date.now()-pressStart>=1000){
+          longVibrated=true; vibrate(50);
         }
       },50);
       pressTimer=setTimeout(()=>{ long=true;
