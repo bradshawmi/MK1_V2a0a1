@@ -67,6 +67,7 @@ static AuroraState gAurora[3] = {0};
 #include <esp_system.h>
 #include "esp_sleep.h"
 #include "driver/gpio.h"
+#include "prefs_keys.h"
 
 // === INSERTION POINT: TYPES_GUARD_ABOVE ===
 #ifndef PP_ENABLED
@@ -1713,9 +1714,7 @@ if (st["master"].is<uint8_t>()) masterBrightness = st["master"].as<uint8_t>();
       if (th < 3.55f) th = 3.55f; if (th > 3.70f) th = 3.70f; 
       dfThresholdV = th; 
     
-      prefs.begin("arcReactor", false);
-      prefs.putFloat("dfThresh", dfThresholdV);
-      prefs.end();
+      prefWriteFloat(PREF_DF_THRESH, dfThresholdV);
     }
     if (st.containsKey("simVbatEnabled")) simVbatEnabled = st["simVbatEnabled"].as<bool>();
     if (st.containsKey("simVbat")) {
@@ -1741,9 +1740,7 @@ for(int z=0; z<3; z++){
 
 static bool applyPresetIndexInternal(int idx, bool persistActive){
   if (idx < 0 || idx > 7) return false;
-  prefs.begin("arcReactor", true);
-  String blob = prefs.getString(("preset"+String(idx)).c_str(), "");
-  prefs.end();
+  String blob = prefReadString(presetKeyFor(idx));
   if (!blob.length()) return false;
 
   StaticJsonDocument<4096> st;
@@ -1753,9 +1750,7 @@ static bool applyPresetIndexInternal(int idx, bool persistActive){
 
   if (persistActive){
     activePreset = idx;
-    prefs.begin("arcReactor", false);
-    prefs.putChar("activePreset", activePreset);
-    prefs.end();
+    prefWriteChar(PREF_ACTIVE_PRESET, activePreset);
   }
   stateEpoch++;
   return true;
@@ -1763,12 +1758,8 @@ static bool applyPresetIndexInternal(int idx, bool persistActive){
 
 static bool isPresetSaved(int idx){
   if (idx < 0 || idx > 7) return false;
-  bool saved = false;
-  prefs.begin("arcReactor", true);
-  String blob = prefs.getString(("preset"+String(idx)).c_str(), "");
-  prefs.end();
-  if (blob.length()) saved = true;
-  return saved;
+  String blob = prefReadString(presetKeyFor(idx));
+  return blob.length() > 0;
 }
 
 static bool cyclePresetNext(){
@@ -1788,22 +1779,19 @@ static bool cyclePresetNext(){
   return false;
 }
 static void loadFavorites(){
-  prefs.begin("arcReactor", true);
+  Preferences prefs;
+  prefBeginRead(prefs);
   for (uint8_t i=0;i<9;i++){
-    String key = "fav" + String(i);
     String def = favHex[i];
-    String got = prefs.getString(key.c_str(), def);
+    String got = prefs.getString(favKeyFor(i), def);
     if (got.length()==7 && got[0]=='#') favHex[i]=got;
   }
-  prefs.end();
+  prefEnd(prefs);
 }
 static void saveFavorite(uint8_t idx, const String &hex){
   if (idx>8) return;
   favHex[idx]=hex;
-  prefs.begin("arcReactor", false);
-  String key = "fav" + String(idx);
-  prefs.putString(key.c_str(), hex);
-  prefs.end();
+  prefWriteString(favKeyFor(idx), hex);
   addDebugf("Saved favorite %u: %s", idx, hex.c_str());
 }
 
@@ -1811,13 +1799,14 @@ static uint32_t rgbToU32(const CRGB &c){
   return (uint32_t(c.r)<<16) | (uint32_t(c.g)<<8) | uint32_t(c.b);
 }
 static void loadPrefs(){
-  prefs.begin("arcReactor", true);
-  masterBrightness = prefs.getUInt("master", masterBrightness);
-  autoDFEnabled    = prefs.getBool("autoDF", autoDFEnabled);
-  dfThresholdV     = prefs.getFloat("dfThresh", dfThresholdV);
-    wifiIdleAutoOff = prefs.getBool("wifiIdleAutoOff", wifiIdleAutoOff);
-if (!(dfThresholdV>=3.55f && dfThresholdV<=3.70f)) dfThresholdV=3.60f;
-  activePreset     = prefs.getChar("activePreset", activePreset);
+  Preferences prefs;
+  prefBeginRead(prefs);
+  masterBrightness = prefs.getUInt(PREF_MASTER, masterBrightness);
+  autoDFEnabled    = prefs.getBool(PREF_AUTO_DF, autoDFEnabled);
+  dfThresholdV     = prefs.getFloat(PREF_DF_THRESH, dfThresholdV);
+  wifiIdleAutoOff  = prefs.getBool(PREF_WIFI_IDLE, wifiIdleAutoOff);
+  if (!(dfThresholdV>=3.55f && dfThresholdV<=3.70f)) dfThresholdV=3.60f;
+  activePreset     = prefs.getChar(PREF_ACTIVE_PRESET, activePreset);
 
   for(int z=0;z<3;z++){
     String p="zone"+String(z);
@@ -1838,23 +1827,24 @@ if (!(dfThresholdV>=3.55f && dfThresholdV<=3.70f)) dfThresholdV=3.60f;
     zones[z].intensityA = prefs.getUChar((p+"intA").c_str(), zones[z].intensityA);
     zones[z].intensityB = prefs.getUChar((p+"intB").c_str(), zones[z].intensityB);
   }
-  prefs.end();
+  prefEnd(prefs);
   FastLED.setBrightness(masterBrightness);
   loadFavorites();
 }
 static void savePrefsFromJSON(const ArduinoJson::JsonObject &root){
-  prefs.begin("arcReactor", false);
+  Preferences prefs;
+  prefBeginWrite(prefs);
 
   if (root.containsKey("master")){
     masterBrightness = root["master"].as<uint8_t>();
-    prefs.putUInt("master", masterBrightness);
+    prefs.putUInt(PREF_MASTER, masterBrightness);
   }
   if (root.containsKey("autoDF")){
     autoDFEnabled = root["autoDF"].as<bool>();
-    prefs.putBool("autoDF", autoDFEnabled);
+    prefs.putBool(PREF_AUTO_DF, autoDFEnabled);
   }
   if (!root["zones"].is<JsonArrayConst>() || root["zones"].size() < 3) {
-    prefs.end(); return;
+    prefEnd(prefs); return;
   }
 
   for(int z=0;z<3;z++){
@@ -1904,10 +1894,10 @@ static void savePrefsFromJSON(const ArduinoJson::JsonObject &root){
     if (th < 3.55f) th = 3.55f;
     if (th > 3.70f) th = 3.70f;
     dfThresholdV = th;
-    prefs.putFloat("dfThresh", dfThresholdV);
+    prefs.putFloat(PREF_DF_THRESH, dfThresholdV);
   }
 
-  prefs.end();
+  prefEnd(prefs);
   FastLED.setBrightness(masterBrightness);
   addDebug("Preferences saved");
 }
@@ -2068,11 +2058,10 @@ static void enterDeepSleepNow(const char* reason){
 // ---------- Setup ----------
 
 static void applyActivePresetOnBoot(){
-  Preferences prefs;
-  prefs.begin("arcReactor", true);
-  int8_t idx = prefs.getChar("activePreset", -1);
-  String blob = (idx >= 0) ? prefs.getString((String("preset")+String(idx)).c_str(), "") : "";
-  prefs.end();
+  int8_t idx = prefReadChar(PREF_ACTIVE_PRESET, -1);
+  if (idx < 0) return;
+  
+  String blob = prefReadString(presetKeyFor(idx));
   if (!blob.length()) return;
 
   StaticJsonDocument<4096> st;
@@ -2151,14 +2140,15 @@ server.on("/update", HTTP_POST, [](){
     if (root.containsKey("master")) masterBrightness = root["master"].as<uint8_t>();
     if (root.containsKey("autoDF")) autoDFEnabled = root["autoDF"].as<bool>();
 
-      if (root.containsKey("wifiIdleAutoOff")) { wifiIdleAutoOff = root["wifiIdleAutoOff"].as<bool>(); prefs.putBool("wifiIdleAutoOff", wifiIdleAutoOff); }
-if (root.containsKey("dfThresholdV")) { float th = root["dfThresholdV"].as<float>(); if (th<3.55f) th=3.55f; if (th>3.70f) th=3.70f; dfThresholdV = th; }
+    if (root.containsKey("wifiIdleAutoOff")) { 
+      wifiIdleAutoOff = root["wifiIdleAutoOff"].as<bool>(); 
+      prefWriteBool(PREF_WIFI_IDLE, wifiIdleAutoOff); 
+    }
+    if (root.containsKey("dfThresholdV")) { float th = root["dfThresholdV"].as<float>(); if (th<3.55f) th=3.55f; if (th>3.70f) th=3.70f; dfThresholdV = th; }
     if (root.containsKey("simVbatEnabled")) simVbatEnabled = root["simVbatEnabled"].as<bool>();
     if (root.containsKey("simVbat")) { float sv = root["simVbat"].as<float>(); if (sv<3.50f) sv=3.50f; if (sv>4.20f) sv=4.20f; simVbat = sv; }
 
-    
-    if (root.containsKey("wifiIdleAutoOff")) wifiIdleAutoOff = root["wifiIdleAutoOff"].as<bool>();
-if (!root["zones"].is<JsonArrayConst>() || root["zones"].size() < 3) {
+    if (!root["zones"].is<JsonArrayConst>() || root["zones"].size() < 3) {
       server.send(400,"text/plain","Bad zones"); return;
     }
 
@@ -2216,10 +2206,10 @@ if (!root["zones"].is<JsonArrayConst>() || root["zones"].size() < 3) {
     StaticJsonDocument<512> doc;
     doc["active"] = activePreset;
     auto items = doc["items"].to<JsonArray>();
-    prefs.begin("arcReactor", true);
+    Preferences prefs;
+    prefBeginRead(prefs);
     for(int i=0;i<8;i++){
-      String key = "preset"+String(i);
-      String blob = prefs.getString(key.c_str(), "");
+      String blob = prefs.getString(presetKeyFor(i), "");
       JsonObject it = items.add<JsonObject>();
       if (blob.length()){
         StaticJsonDocument<768> pd;
@@ -2233,7 +2223,7 @@ if (!root["zones"].is<JsonArrayConst>() || root["zones"].size() < 3) {
         it["color"] = "#EEEEEE";
       }
     }
-    prefs.end();
+    prefEnd(prefs);
     String out; serializeJson(doc, out);
     server.send(200,"application/json",out);
   });
@@ -2248,11 +2238,12 @@ if (!root["zones"].is<JsonArrayConst>() || root["zones"].size() < 3) {
     if (idx < 0 || idx > 7){ server.send(400,"text/plain","Bad index"); return; }
 
     String blob; serializeJson(st, blob);
-    prefs.begin("arcReactor", false);
-    prefs.putString(("preset"+String(idx)).c_str(), blob);
+    Preferences prefs;
+    prefBeginWrite(prefs);
+    prefs.putString(presetKeyFor(idx), blob);
     activePreset = idx;
-    prefs.putChar("activePreset", activePreset);
-    prefs.end();
+    prefs.putChar(PREF_ACTIVE_PRESET, activePreset);
+    prefEnd(prefs);
 
     server.send(200,"application/json", blob);
   });
@@ -2264,10 +2255,7 @@ server.on("/presetApply", HTTP_POST, [](){
     int idx = doc["idx"] | -1;
     if (idx < 0 || idx > 7){ server.send(400,"text/plain","Bad index"); return; }
 
-    Preferences prefs;
-    prefs.begin("arcReactor", true);
-    String blob = prefs.getString((String("preset")+String(idx)).c_str(), "");
-    prefs.end();
+    String blob = prefReadString(presetKeyFor(idx));
     if (!blob.length()){ server.send(404,"text/plain","No preset"); return; }
 
     StaticJsonDocument<4096> st;
@@ -2278,10 +2266,7 @@ server.on("/presetApply", HTTP_POST, [](){
   applyPresetJson(st);
   // Persist activePreset = idx (same behavior as internal path when persistActive=true)
   activePreset = idx;
-  Preferences _pf;
-  _pf.begin("arcReactor", false);
-  _pf.putChar("activePreset", (char)activePreset);
-  _pf.end();
+  prefWriteChar(PREF_ACTIVE_PRESET, (char)activePreset);
   stateEpoch++; // trigger epoch-gated UI hydrate
   server.send(200, "text/plain", "OK");
   return;
@@ -2296,10 +2281,7 @@ server.on("/status",  HTTP_GET, [](){
     if (!server.hasArg("idx")) { server.send(400,"text/plain","Missing idx"); return; }
     int idx = server.arg("idx").toInt();
     if (idx < 0 || idx > 7) { server.send(400,"text/plain","Bad idx"); return; }
-    Preferences prefs;
-    prefs.begin("arcReactor", true); // read-only
-    String blob = prefs.getString(("preset"+String(idx)).c_str(), "");
-    prefs.end();
+    String blob = prefReadString(presetKeyFor(idx));
     if (!blob.length()) { server.send(404,"text/plain","NO_PRESET"); return; }
     server.send(200, "application/json", blob);
   });
