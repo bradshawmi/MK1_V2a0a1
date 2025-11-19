@@ -390,7 +390,6 @@ static inline void PP_applyPowerPulseOverlay(CRGB* leds, uint32_t nowMs){
 #endif
 
 static void auroraUpdateAndOverlay();
-static void powerPulseUpdateAndOverlay();
 static void lightningUpdateAndOverlay();
 static void overloadUpdateAndOverlay();
 static const char s0[] PROGMEM = "";
@@ -500,19 +499,16 @@ static void effectName(Effect e, char* out, size_t outlen){
   out[outlen-1]='\0';
 }
 
-#define dyingFlickerEnabled    autoDFEnabled
-#define dyingFlickerThresholdV dfThresholdV
-
-CRGB leds[NUM_LEDS];
+static CRGB leds[NUM_LEDS];
 static uint8_t osGlow[NUM_LEDS] = {0};
 static RingCoord gRingLUT[NUM_LEDS];
 static bool      gRingLUTInited = false;
-WebServer server(80);
-Preferences prefs;
+static WebServer server(80);
+static Preferences prefs;
 
 struct Zone {
-  int startLed;
-  int endLed;
+  uint8_t startLed;
+  uint8_t endLed;
   uint8_t effectA;
   uint8_t effectB;
   CRGB   colorA;
@@ -540,21 +536,21 @@ static inline bool powerPulseAnyZoneSelected(){
   return false;
 }
 
-uint8_t masterBrightness = 128;
-bool    autoDFEnabled    = false;
+static uint8_t masterBrightness = 128;
+static bool    autoDFEnabled    = false;
 
 static bool  wifiIdleAutoOff = true;
-float batteryVoltage = 0.0f;
+static float batteryVoltage = 0.0f;
 
 static float dfThresholdV = 3.60f;
 static bool  simVbatEnabled = false;
 static float simVbat = 3.60f;
 
-unsigned long wakeMillis = 0;
-unsigned long simLowSinceMs = 0;
-bool allowAutoSleep = false;
+static unsigned long wakeMillis = 0;
+static unsigned long simLowSinceMs = 0;
+static bool allowAutoSleep = false;
 
-unsigned long buttonDownAt = 0;
+static unsigned long buttonDownAt = 0;
 static const unsigned long BTN_DEBOUNCE_MS = 25;
 static const unsigned long BTN_DBL_MS = 600;
 static int lastBtnState = HIGH;
@@ -564,12 +560,12 @@ static unsigned long lastReleaseMs = 0;
 static uint8_t clickCount = 0;
 static const unsigned long BUTTON_HOLD_MS = 1100;
 
-String favHex[9] = {
+static String favHex[9] = {
   "#FF6A00","#00C8FF","#FFFFFF","#00FFAA","#FF00FF",
   "#FFA500","#00FF00","#0000FF","#FFFF00"
 };
 
-int8_t activePreset = -1;
+static int8_t activePreset = -1;
 
 static const int DEBUG_LINES = 12;
 static char debugLog[DEBUG_LINES][64];
