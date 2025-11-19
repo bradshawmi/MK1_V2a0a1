@@ -16,7 +16,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
   html,body{ margin:0; padding:0; -webkit-text-size-adjust:100%; }
   body{ background:#000 !important; color:#fff !important; font-family:Arial,Helvetica,sans-serif; margin:10px; padding-bottom:80px; }
   h1{ margin:0 0 6px 0; font-size:24px; color:#fff !important; }
-.build-badge{ display:inline-block; margin-left:8px; padding:2px 8px; border-radius:999px; font-size:16px; font-weight:600; border:1px solid rgba(0,255,255,0.35); background:rgba(0,255,255,0.08)}
+.build-badge{ display:inline-block; margin-left:8px; padding:2px 8px; border-radius:999px; font-size:16px; font-weight:600; border:1px solid rgba(0,255,255,0.35); background:rgba(0,255,255,0.08); color:#cfefff; vertical-align:middle; }
   .small{ font-size:0.9rem; color:#eee; }
   .statusbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   .dot{ width:10px; height:10px; border-radius:50%; background:#ccc; margin-left:auto; }
@@ -102,10 +102,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
 </div>
 
 <div class="card">
-  <div class="row" style="justify-content:space-between; align-items:center;"><label class="section-title" style="font-size:20px">MASTER BRIGHTNESS</label><span class="small" style="color:#000">[...]
+  <div class="row" style="justify-content:space-between; align-items:center;"><label class="section-title" style="font-size:20px">MASTER BRIGHTNESS</label><span class="small" style="color:#000">Batt. <span id="batteryMB">--.--</span> V</span>
 </div>
-<input type="range" id="master" min="0" max="255" value="128">
-<div class="row" style="margin-top:6px; align-items:center; gap:12px;">
+  <input type="range" id="master" min="0" max="255" value="128">
+  <div class="row" style="margin-top:6px; align-items:center; gap:12px;">
   <label style="display:flex;align-items:center;gap:8px;margin:0; width:140px; flex:0 0 140px">
     <input type="checkbox" id="autoDF">
     <span>DyingFlicker trigger volts: <span id="dfThreshLabel" style="display:none"></span></span>
@@ -399,7 +399,7 @@ function hydrateEffects(j){
   }
   document.getElementById('master').value = j.master;
   document.getElementById('autoDF').checked = !!j.autoDF;
-  if (j.dfThresholdV){ document.getElementById('dfThresh').value=j.dfThresholdV.toFixed(2); document.getElementById('dfThreshText').value=j.dfThresholdV.toFixed(2); document.getElementById('dfTh[...]
+  if (j.dfThresholdV){ document.getElementById('dfThresh').value=j.dfThresholdV.toFixed(2); document.getElementById('dfThreshText').value=j.dfThresholdV.toFixed(2); document.getElementById('dfThreshLabel').innerText=j.dfThresholdV.toFixed(2); }
   document.getElementById('simVbatEn').checked=!!j.simVbatEnabled;
   if (j.simVbat){ document.getElementById('simVbat').value=j.simVbat.toFixed(2); document.getElementById('simVbatText').value=j.simVbat.toFixed(2); }
   document.getElementById('simNote').style.display = (document.getElementById('simVbatEn').checked?'block':'none');
@@ -480,7 +480,7 @@ function doPresetApply(idx, btn){
     .then(r=>r.json()).then(j=>{
       hydrateEffects(j);
   
-  if (typeof j.activePreset==="number"){ setActivePresetButton(j.activePreset); lastActivePreset=j.activePreset; }if (typeof j.activePreset==="number") { setActivePresetButton(j.activePreset); l[...]
+  if (typeof j.activePreset==="number"){ setActivePresetButton(j.activePreset); lastActivePreset=j.activePreset; }if (typeof j.activePreset==="number") { setActivePresetButton(j.activePreset); lastActivePreset=j.activePreset; }
       presetMeta.active = j.activePreset ?? idx;
       setActivePresetButton(presetMeta.active);
       flashOnce(btn);
@@ -701,9 +701,8 @@ setInterval(()=>{
 
   update();
 })();
-})();
+// LM_END HTML/JS
 </script>
-<!-- LM_END HTML/JS -->
 </body>
 </html>)HTML";
 
