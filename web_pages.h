@@ -350,26 +350,27 @@ function renderFavRow(){
   for(let i=0;i<9;i++){
     const b=document.createElement('button');
     b.className='fav'; b.style.background=favs[i];
-    let pressTimer=null,long=false,pressStart=0,checkInterval=null,vibrated=false;
+    let pressTimer=null,long=false,pressStart=0,checkInterval=null;
     const clear=()=>{ 
       if(pressTimer){ clearTimeout(pressTimer); pressTimer=null; }
       if(checkInterval){ clearInterval(checkInterval); checkInterval=null; }
-      pressStart=0; vibrated=false;
+      pressStart=0; 
+    };
+    const doLongPress=()=>{
+      if(long) return; long=true;
+      vibrate(50);
+      const hex=hexFromHSV();
+      fetch('/setFav',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idx:i,hex})})
+        .then(()=>{ favs[i]=hex; b.style.background=hex; flashOnce(b); });
     };
     const onDown=(e)=>{ e.preventDefault(); long=false; clear();
-      pressStart=Date.now(); vibrated=false;
+      pressStart=Date.now();
       checkInterval=setInterval(()=>{
-        if(!vibrated && Date.now()-pressStart>=1000){
-          vibrated=true; vibrate(50);
-        }
+        if(Date.now()-pressStart>=1000){ clearInterval(checkInterval); checkInterval=null; doLongPress(); }
       },50);
-      pressTimer=setTimeout(()=>{ long=true;
-        const hex=hexFromHSV();
-        fetch('/setFav',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idx:i,hex})})
-          .then(()=>{ favs[i]=hex; b.style.background=hex; flashOnce(b); });
-      },1000);
+      pressTimer=setTimeout(()=>{ doLongPress(); },1000);
     };
-    const onUp=()=>{ if(!pressTimer) return; clear(); if(!long){
+    const onUp=()=>{ if(!pressTimer && !checkInterval) return; clear(); if(!long){
       applyGuardUntil=Date.now()+120; clearLiveThrottle(); setFromHex(favs[i]);
       if(currentTarget){
         currentTarget.dataset.value=favs[i];
@@ -378,9 +379,11 @@ function renderFavRow(){
       }
       clearLiveThrottle(); live();
     }};
+    const onContextMenu=(e)=>{ e.preventDefault(); clear(); doLongPress(); };
     b.addEventListener('mousedown',onDown); b.addEventListener('touchstart',onDown,{passive:false});
     b.addEventListener('mouseup',onUp); b.addEventListener('mouseleave',clear);
     b.addEventListener('touchend',onUp); b.addEventListener('touchcancel',clear);
+    b.addEventListener('contextmenu', onContextMenu);
     row.appendChild(b);
   }
 }
