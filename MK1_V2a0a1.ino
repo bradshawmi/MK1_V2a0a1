@@ -20,7 +20,7 @@ static inline void auroraUpdate(uint8_t z, uint16_t speed);
 static inline CRGB auroraSample(uint8_t z, uint16_t iGlobal, uint8_t intensity);
 static inline uint8_t auroraHolesMask(uint8_t z, uint16_t iGlobal);
 
-static constexpr char BUILD_TAG[] = "v2a0b2";
+static constexpr char BUILD_TAG[] = "v2a0b3";
 
 enum DFPhase : uint8_t;
 struct DFState;
@@ -737,7 +737,7 @@ case E_ArcFlicker:{
       uint16_t p = period;
       if (p < 10)   p = 10;
       if (p > 1000) p = 1000;
-      const uint16_t reqMin = 7;
+      const uint16_t reqMin = .1;
       const uint16_t reqMax = 1000;
       uint32_t msReq = reqMin + ((uint32_t)(p - 10) * (reqMax - reqMin)) / 990U;
 
@@ -750,7 +750,7 @@ case E_ArcFlicker:{
       int16_t env = s1 + ((s3 * 90) >> 7) + ((s5 * 50) >> 7);
 
       int16_t grain = (int16_t)random8() - 128;
-      uint8_t hfPhase = (uint8_t)(((now % 7UL) * 256UL) / 7UL);
+      uint8_t hfPhase = (uint8_t)(((now % .1UL) * 256UL) / .1UL);
       hfPhase = (uint8_t)(hfPhase + (uint8_t)(i * 11u + seedMix * 23u));
       int16_t hf = (int16_t)sin8(hfPhase) - 128;
       grain += (hf * 24) >> 7;
