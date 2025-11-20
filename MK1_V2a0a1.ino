@@ -53,6 +53,7 @@ struct PlasmaParams {
   float   wave_turbulence;     // Wave interference intensity (0.4-1.2)
   float   source_orbit_speed;  // Orbital motion speed of wave sources (0.12-0.40)
   float   color_cycle_speed;   // Color palette cycling speed (0.08-0.30)
+  float   noise_damping;       // Low-speed noise damping factor (0.0-1.0, lower = more damping)
 };
 
 struct RingCoord {
@@ -619,6 +620,12 @@ static PlasmaParams makePlasmaParams(uint16_t period, uint8_t intensity, uint16_
   p.source_orbit_speed = 0.12f + 0.28f * tNorm; // Faster orbital motion at higher speeds
   p.color_cycle_speed = 0.08f + 0.22f * tNorm;  // Color palette cycling speed
   
+  // Low-speed noise damping for smooth, molten motion without jitter
+  // At slow speeds (tNorm near 0), apply strong damping (0.2-0.3)
+  // At fast speeds (tNorm near 1), no damping (1.0)
+  // Use exponential curve for smooth transition
+  p.noise_damping = 0.25f + 0.75f * (tNorm * tNorm);  // Quadratic: more damping at low speeds
+  
   return p;
 }
 
@@ -808,6 +815,10 @@ static CRGB plasmaSample(uint16_t iGlobal,
   float fbm_x = fbm_noise(nx, ny, noise_time, 3, 0.55f, 2.0f);
   float fbm_y = fbm_noise(nx + 10000, ny + 20000, noise_time + 5000, 3, 0.55f, 2.0f);
   
+  // Apply low-speed damping to reduce jitter at slow speeds
+  fbm_x *= params.noise_damping;
+  fbm_y *= params.noise_damping;
+  
   // Apply displacement to coordinates
   float displaced_x = coord.x + fbm_x * params.noise_amplitude * 0.15f;
   float displaced_y = coord.y + fbm_y * params.noise_amplitude * 0.15f;
@@ -863,6 +874,8 @@ static CRGB plasmaSample(uint16_t iGlobal,
   // === FBM Amplitude Modulation ===
   // Additional FBM layer for amplitude/intensity variation
   float fbm_amplitude = fbm_noise(nx * 2, ny * 2, noise_time, 2, 0.6f, 2.0f);
+  // Apply low-speed damping to amplitude modulation as well
+  fbm_amplitude *= params.noise_damping;
   wave_sum += fbm_amplitude * params.noise_amplitude;
 
   // === Center LED Enhancement ===
@@ -872,6 +885,8 @@ static CRGB plasmaSample(uint16_t iGlobal,
     // Center LED gets a pulsing, radial energy contribution
     float center_pulse = sinf(time_scaled * 1.5f) * 0.3f;
     float center_noise = fbm_noise(nx, ny, noise_time * 2, 2, 0.7f, 2.0f) * 0.2f;
+    // Apply damping to center noise as well for smooth low-speed motion
+    center_noise *= params.noise_damping;
     wave_sum += (center_pulse + center_noise + 0.5f) * 0.8f;
   }
 
