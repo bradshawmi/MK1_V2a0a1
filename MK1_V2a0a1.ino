@@ -47,6 +47,9 @@ struct PlasmaParams {
   uint8_t time_bitshift;
   uint8_t hue_offset;
   float   brightness;
+  float   wave_turbulence;     // Controls wave interference intensity
+  float   source_orbit_speed;  // Speed of wave source orbital motion
+  float   color_cycle_speed;   // Speed of color palette cycling
 };
 
 struct RingCoord {
@@ -594,18 +597,25 @@ static PlasmaParams makePlasmaParams(uint16_t period, uint8_t intensity, uint16_
   if (intenNorm < 0.0f) intenNorm = 0.0f;
   if (intenNorm > 1.0f) intenNorm = 1.0f;
 
-  const float TIME_SCALE_SLOW = 0.06f;
-  const float TIME_SCALE_FAST = 2.40f;
+  const float TIME_SCALE_SLOW = 0.08f;
+  const float TIME_SCALE_FAST = 3.20f;
   p.time_scale = TIME_SCALE_SLOW + (TIME_SCALE_FAST - TIME_SCALE_SLOW) * tNorm;
 
-  p.noise_amplitude = 0.10f + 0.90f * intenNorm;
-  p.noise_intensity = 0.20f + 0.80f * intenNorm;
+  // Enhanced noise parameters for more detailed plasma texture
+  p.noise_amplitude = 0.15f + 1.20f * intenNorm;
+  p.noise_intensity = 0.30f + 1.20f * intenNorm;
 
   p.time_bitshift = 5;
   p.hue_offset    = (uint8_t)(seedMix & 0xFF);
 
   float brightNorm = (float)masterBright / 255.0f;
-  p.brightness = 1.5f * brightNorm;
+  p.brightness = 1.6f * brightNorm;
+  
+  // New enhanced parameters
+  p.wave_turbulence = 0.4f + 0.8f * intenNorm;  // Higher intensity = more turbulent waves
+  p.source_orbit_speed = 0.12f + 0.28f * tNorm; // Faster orbital motion at higher speeds
+  p.color_cycle_speed = 0.08f + 0.22f * tNorm;  // Color palette cycling speed
+  
   return p;
 }
 
@@ -620,33 +630,49 @@ static CRGB plasmaMapWaveToColor(float wave_value, float intensityNorm, const Pl
 
   uint8_t baseHue = params.hue_offset;
 
-  // Small normalized-driven hue offset (creates local patchiness).
-  // Range: roughly -4 .. +4 hue units (helps create local color variation).
-  float normHueOffset = (normalized - 0.5f) * 8.0f;
+  // Enhanced hue modulation for electromagnetic spectrum feel
+  // Map wave peaks to different colors in the electromagnetic spectrum
+  float waveNorm = wave_value;
+  if (waveNorm < -4.0f) waveNorm = -4.0f;
+  if (waveNorm > 4.0f)  waveNorm =  4.0f;
+  waveNorm *= 0.25f; // normalize to -1..+1
+  
+  // Create electromagnetic spectrum mapping (blue->cyan->white->purple)
+  float spectralShift = waveNorm * 45.0f; // ±45 hue units for dramatic color shifts
+  
+  // Add wave-based color pulsing for more dynamic appearance
+  float colorPulse = sinf(normalized * 3.14159f * 2.0f) * 18.0f;
+  
+  // Intensity affects color range - higher intensity = broader spectrum
+  float intensityColorSpread = 8.0f + (28.0f - 8.0f) * intensityNorm;
+  float intensityJitter = waveNorm * intensityColorSpread;
+  
+  // Combine all color modulations
+  float totalHueOffset = spectralShift + colorPulse + intensityJitter;
+  int16_t hueOffset16 = (int16_t)(totalHueOffset + (totalHueOffset >= 0.0f ? 0.5f : -0.5f));
+  
+  uint8_t hue = baseHue + hueOffset16;
 
-  // Map Intensity 0..1 -> jitterMax 3.5 .. 14.0 hue units (~±5° .. ±20°).
-  float jitterMax = 3.5f + (14.0f - 3.5f) * intensityNorm;
-
-  // Convert the wave value into a signed driver in [-1, +1].
-  float signedWave = wave_value;
-  if (signedWave < -4.0f) signedWave = -4.0f;
-  if (signedWave > 4.0f)  signedWave =  4.0f;
-  signedWave *= 0.25f; // approx -1 .. +1
-
-  float jitter = signedWave * jitterMax;
-
-  // Combine the small normalized hue offset with the jitter.
-  float hueOffsetF = normHueOffset + jitter;
-  int8_t hueOffset8 = (int8_t)(hueOffsetF >= 0.0f ? hueOffsetF + 0.5f : hueOffsetF - 0.5f);
-
-  uint8_t hue = baseHue + hueOffset8;
-
+  // Enhanced saturation for more vivid plasma appearance
   float waveIntensity = fabsf(wave_value);
-  float satF = 192.0f + waveIntensity * 63.0f;
-  if (satF > 255.0f) satF = 255.0f;
-  uint8_t sat = (uint8_t)(satF + 0.5f);
+  float satBase = 220.0f + waveIntensity * 35.0f; // Higher base saturation
+  
+  // Add intensity-based saturation boost for more vibrant colors
+  satBase += intensityNorm * 20.0f;
+  if (satBase > 255.0f) satBase = 255.0f;
+  uint8_t sat = (uint8_t)(satBase + 0.5f);
 
+  // Enhanced brightness with wave peak emphasis
   float valF = normalized * 255.0f * params.brightness;
+  
+  // Add brightness peaks at wave maxima for "plasma cell" effect
+  float peakBoost = 1.0f;
+  if (normalized > 0.7f) {
+    float peakness = (normalized - 0.7f) / 0.3f;
+    peakBoost = 1.0f + (peakness * peakness * 0.35f * intensityNorm);
+  }
+  valF *= peakBoost;
+  
   if (valF < 0.0f) valF = 0.0f;
   if (valF > 255.0f) valF = 255.0f;
   uint8_t val = (uint8_t)(valF + 0.5f);
@@ -671,6 +697,7 @@ static CRGB plasmaSample(uint16_t iGlobal,
   PlasmaParams params = makePlasmaParams(period, intensity, seedMix, masterBright);
 
   float time_scaled = (float)nowMs * params.time_scale * 0.001f;
+  float orbit_time = (float)nowMs * params.source_orbit_speed * 0.001f;
 
   struct WaveSource {
     float x;
@@ -678,36 +705,77 @@ static CRGB plasmaSample(uint16_t iGlobal,
     float frequency;
     float amplitude;
     float phase_speed;
+    float orbit_radius;   // Radius of orbital motion
+    float orbit_phase;    // Phase offset for orbital motion
   };
 
-  const WaveSource sources[4] = {
-    {0.5f, 0.5f, 1.0f, 1.0f, 0.8f},
-    {0.0f, 0.0f, 1.5f, 0.8f, 1.2f},
-    {1.0f, 1.0f, 0.8f, 1.2f, 0.6f},
-    {0.5f, 0.0f, 1.2f, 0.9f, 1.0f}
+  // Enhanced wave sources with orbital motion for dynamic plasma
+  WaveSource sources[4] = {
+    {0.5f, 0.5f, 1.2f, 1.0f, 0.9f, 0.0f,   0.0f},        // Center source (stationary)
+    {0.0f, 0.0f, 1.8f, 0.9f, 1.3f, 0.35f,  0.0f},        // Orbiting source 1
+    {1.0f, 1.0f, 1.4f, 1.1f, 0.7f, 0.30f,  2.094f},      // Orbiting source 2 (120° offset)
+    {0.5f, 0.0f, 1.6f, 0.95f, 1.1f, 0.28f, 4.189f}       // Orbiting source 3 (240° offset)
   };
+
+  // Apply orbital motion to non-center sources
+  for (uint8_t i = 1; i < 4; ++i) {
+    float orbit_angle = orbit_time + sources[i].orbit_phase;
+    float orbit_x = cosf(orbit_angle) * sources[i].orbit_radius;
+    float orbit_y = sinf(orbit_angle) * sources[i].orbit_radius;
+    sources[i].x = 0.5f + orbit_x;
+    sources[i].y = 0.5f + orbit_y;
+  }
 
   float wave_sum = 0.0f;
+  float wave_product = 1.0f; // For interference patterns
+  
   for (uint8_t i = 0; i < 4; ++i) {
     float dx = coord.x - sources[i].x;
     float dy = coord.y - sources[i].y;
     float distance = sqrtf(dx * dx + dy * dy);
 
-    float wave_phase = distance * sources[i].frequency
+    float wave_phase = distance * sources[i].frequency * 6.28318f // 2*PI for full wave
                      + time_scaled * sources[i].phase_speed;
-    wave_sum += sinf(wave_phase) * sources[i].amplitude;
+    float wave = sinf(wave_phase) * sources[i].amplitude;
+    wave_sum += wave;
+    
+    // Accumulate for interference pattern (creates visible plasma cells)
+    wave_product *= (1.0f + wave * 0.3f);
   }
+  
+  // Add interference pattern to create more visible structure
+  wave_sum += (wave_product - 1.0f) * params.wave_turbulence;
 
+  // Multi-octave noise for finer plasma texture details
   float noise_scale = params.noise_intensity;
-  uint32_t noise_x = (uint32_t)(coord.x * 65535.0f * noise_scale);
-  uint32_t noise_y = (uint32_t)(coord.y * 65535.0f * noise_scale);
   uint32_t noise_time = nowMs << params.time_bitshift;
+  
+  // First octave - coarse structure
+  uint32_t noise_x1 = (uint32_t)(coord.x * 65535.0f * noise_scale);
+  uint32_t noise_y1 = (uint32_t)(coord.y * 65535.0f * noise_scale);
+  uint16_t n16_1 = inoise16(noise_x1, noise_y1, noise_time);
+  float noise_mod1 = ((float)n16_1 - 32768.0f) / 65536.0f;
+  
+  // Second octave - fine detail
+  uint32_t noise_x2 = (uint32_t)(coord.x * 65535.0f * noise_scale * 2.3f);
+  uint32_t noise_y2 = (uint32_t)(coord.y * 65535.0f * noise_scale * 2.3f);
+  uint16_t n16_2 = inoise16(noise_x2, noise_y2, noise_time + 10000);
+  float noise_mod2 = ((float)n16_2 - 32768.0f) / 65536.0f;
+  
+  // Third octave - very fine turbulence
+  uint32_t noise_x3 = (uint32_t)(coord.x * 65535.0f * noise_scale * 4.7f);
+  uint32_t noise_y3 = (uint32_t)(coord.y * 65535.0f * noise_scale * 4.7f);
+  uint16_t n16_3 = inoise16(noise_x3, noise_y3, noise_time + 20000);
+  float noise_mod3 = ((float)n16_3 - 32768.0f) / 65536.0f;
+  
+  // Combine noise octaves with decreasing weights
+  float combined_noise = noise_mod1 * params.noise_amplitude 
+                       + noise_mod2 * params.noise_amplitude * 0.4f
+                       + noise_mod3 * params.noise_amplitude * 0.2f;
+  
+  wave_sum += combined_noise;
 
-  uint16_t n16 = inoise16(noise_x, noise_y, noise_time);
-  float noise_mod = ((float)n16 - 32768.0f) / 65536.0f;
-  wave_sum += noise_mod * params.noise_amplitude;
-
-  // Intensity controls the hue-jitter band width (min -> ~±3.5 units, max -> ~±14).
+  // Intensity controls the hue-jitter band width and overall turbulence
   float intensityNorm = (float)intensity / 255.0f;
   if (intensityNorm < 0.0f) intensityNorm = 0.0f;
   if (intensityNorm > 1.0f) intensityNorm = 1.0f;
