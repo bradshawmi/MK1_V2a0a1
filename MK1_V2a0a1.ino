@@ -989,7 +989,8 @@ case E_WavePulse:{
         y = 1.0f - (float)pm / (float)exhaleMs;
       }
 
-      float a = (float)intensity / 255.0f;
+      // HaloBreath intensity remapping: slider 0→50% effect, slider 127.5→100% effect, slider 255→150% effect
+      float a = 0.5f + ((float)intensity / 255.0f);
       float vF = a * y;
       int v = (int)(vF * 255.0f + 0.5f);
       if (v < 0) v = 0; else if (v > 255) v = 255;
