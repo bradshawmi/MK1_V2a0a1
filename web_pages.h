@@ -169,6 +169,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
       <label class="lblIntensity">Intensity</label><input type="range" id="z1intB" min="0" max="255" value="255">
       <button class="swatch" id="z1b_color" data-value="#00FFFF" style="background:#00FFFF;color:#000">#00FFFF</button>
     </div>
+    <div class="cardNote" style="grid-column:1/-1">
+      BLEND:<br>B overlays A where B ≠ OFF. If A+B are OFF → zone is dark.
+    </div>
   </div>
 </details>
 
@@ -186,6 +189,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
       <label class="lblSpeed">Speed</label><input type="range" id="z2speedB" min="10" max="1000" value="350">
       <label class="lblIntensity">Intensity</label><input type="range" id="z2intB" min="0" max="255" value="255">
       <button class="swatch" id="z2b_color" data-value="#000000" style="background:#000000;color:#fff">#000000</button>
+    </div>
+    <div class="cardNote" style="grid-column:1/-1">
+      BLEND:<br>B overlays A where B ≠ OFF. If A+B are OFF → zone is dark.
     </div>
   </div>
 </details>
