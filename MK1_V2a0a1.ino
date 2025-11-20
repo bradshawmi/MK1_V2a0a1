@@ -1,4 +1,15 @@
 // NOTE: INDEX_HTML has been extracted to web_pages.h (see branch refactor/extract-webpages)
+//
+// CONNECTIVITY NOTES:
+// This firmware implements a WiFi-based HTTP WebUI for controlling the Arc Reactor.
+// - WebUI runs over WiFi Access Point mode (SSID: ArcReactorMK1)
+// - HTTP server on port 80 serves full HTML/CSS/JavaScript interface
+// - ESP32C3 supports BLE (Bluetooth Low Energy) but NOT Bluetooth Classic
+// - Current WebUI cannot run over Bluetooth (HTTP requires TCP/IP, which BLE doesn't support)
+// - Alternative: Web Bluetooth API could be implemented for BLE-based control
+// - See README.md and CONNECTIVITY_FAQ.md for detailed explanation of connectivity options
+//
+// For questions about Bluetooth support, see: CONNECTIVITY_FAQ.md
 
 #define DEBUG_LOGS 0
 #include <stdint.h>
