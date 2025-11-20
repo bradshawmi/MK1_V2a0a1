@@ -40,16 +40,19 @@ struct AuroraState {
   uint32_t lastMs;
 };
 
+// Enhanced Plasma Effect Parameters (v2a0b3+)
+// Implements dynamic wave sources with orbital motion and multi-octave noise
+// for realistic electromagnetic plasma appearance inspired by FastLED Plasma Waves
 struct PlasmaParams {
-  float   time_scale;
-  float   noise_intensity;
-  float   noise_amplitude;
-  uint8_t time_bitshift;
-  uint8_t hue_offset;
-  float   brightness;
-  float   wave_turbulence;     // Controls wave interference intensity
-  float   source_orbit_speed;  // Speed of wave source orbital motion
-  float   color_cycle_speed;   // Speed of color palette cycling
+  float   time_scale;          // Overall animation speed multiplier
+  float   noise_intensity;     // Noise field density/scale
+  float   noise_amplitude;     // Noise contribution to wave sum
+  uint8_t time_bitshift;       // Time scaling for noise evolution
+  uint8_t hue_offset;          // Base hue for color palette
+  float   brightness;          // Overall brightness multiplier
+  float   wave_turbulence;     // Wave interference intensity (0.4-1.2)
+  float   source_orbit_speed;  // Orbital motion speed of wave sources (0.12-0.40)
+  float   color_cycle_speed;   // Color palette cycling speed (0.08-0.30)
 };
 
 struct RingCoord {
