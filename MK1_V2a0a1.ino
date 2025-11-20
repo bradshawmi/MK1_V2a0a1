@@ -20,7 +20,7 @@ static inline void auroraUpdate(uint8_t z, uint16_t speed);
 static inline CRGB auroraSample(uint8_t z, uint16_t iGlobal, uint8_t intensity);
 static inline uint8_t auroraHolesMask(uint8_t z, uint16_t iGlobal);
 
-static constexpr char BUILD_TAG[] = "v2a0b6";
+static constexpr char BUILD_TAG[] = "v2a0b7";
 
 enum DFPhase : uint8_t;
 struct DFState;
@@ -690,8 +690,19 @@ static CRGB plasmaMapWaveToColor(float wave_value, float intensityNorm, const Pl
   if (waveNorm > 4.0f)  waveNorm =  4.0f;
   waveNorm *= 0.25f; // normalize to -1..+1
   
-  // Create electromagnetic spectrum mapping (blue->cyan->white->purple)
-  float spectralShift = waveNorm * 45.0f; // ±45 hue units for dramatic color shifts
+  // Map intensity slider to hue jitter amplitude.
+  // Intensity 0 -> ±5 degrees, Intensity 255 -> ±20 degrees.
+  // FastLED hue units: 0..255 == 0..360 degrees.
+  const float MIN_SHIFT_DEG = 5.0f;   // degrees at intensity = 0
+  const float MAX_SHIFT_DEG = 20.0f;  // degrees at intensity = 1 (255)
+  const float HUE_UNITS_PER_DEG = 255.0f / 360.0f; // convert degrees -> 0..255 hue units
+
+  // Linear interpolation of shift amplitude by intensityNorm (0..1)
+  float shiftDeg = MIN_SHIFT_DEG + (MAX_SHIFT_DEG - MIN_SHIFT_DEG) * intensityNorm;
+  float shiftHueUnits = shiftDeg * HUE_UNITS_PER_DEG;
+
+  // waveNorm is -1..+1, so multiply to get signed spectral shift in hue units
+  float spectralShift = waveNorm * shiftHueUnits;
   
   // Add wave-based color pulsing for more dynamic appearance
   float colorPulse = sinf(contrastStretched * 3.14159f * 2.0f) * 18.0f;
