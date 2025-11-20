@@ -20,7 +20,7 @@ static inline void auroraUpdate(uint8_t z, uint16_t speed);
 static inline CRGB auroraSample(uint8_t z, uint16_t iGlobal, uint8_t intensity);
 static inline uint8_t auroraHolesMask(uint8_t z, uint16_t iGlobal);
 
-static constexpr char BUILD_TAG[] = "v2a0b7";
+static constexpr char BUILD_TAG[] = "v2a0b8";
 
 enum DFPhase : uint8_t;
 struct DFState;
@@ -989,7 +989,7 @@ case E_WavePulse:{
         y = 1.0f - (float)pm / (float)exhaleMs;
       }
 
-      float a = (float)intensity / 255.0f;
+      float a = 0.5f + ((float)intensity / 255.0f);
       float vF = a * y;
       int v = (int)(vF * 255.0f + 0.5f);
       if (v < 0) v = 0; else if (v > 255) v = 255;
