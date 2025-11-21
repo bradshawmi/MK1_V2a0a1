@@ -2063,6 +2063,19 @@ static inline void startDNSServer(){
   dnsServer.start(53, "*", WiFi.softAPIP());
 }
 
+// Helper function to wait for AP to be fully ready
+static inline void waitForAPReady(){
+  // WiFi.softAP is asynchronous - wait for it to be fully initialized
+  delay(100);
+  
+  // Ensure AP is fully up by checking for valid IP
+  int retries = 0;
+  while (WiFi.softAPIP() == IPAddress(0, 0, 0, 0) && retries < 10) {
+    delay(100);
+    retries++;
+  }
+}
+
 static void wifiEnable(){
   if (wifiOn) return;
   
@@ -2070,16 +2083,8 @@ static void wifiEnable(){
   WiFi.mode(WIFI_AP);
   WiFi.softAP(AP_SSID, AP_PASS);
   
-  // Wait for AP to be ready - WiFi.softAP is asynchronous
-  // Give it time to fully initialize before starting services
-  delay(100);
-  
-  // Ensure AP is fully up by checking IP
-  int retries = 0;
-  while (WiFi.softAPIP() == IPAddress(0, 0, 0, 0) && retries < 10) {
-    delay(100);
-    retries++;
-  }
+  // Wait for AP to be fully ready before starting services
+  waitForAPReady();
   
   // Now start DNS and web server services
   startDNSServer();
@@ -2303,14 +2308,7 @@ delay(100);
   WiFi.softAP(AP_SSID, AP_PASS);
   
   // Wait for AP to be fully ready before starting services
-  delay(100);
-  
-  // Ensure AP is fully up by checking IP
-  int retries = 0;
-  while (WiFi.softAPIP() == IPAddress(0, 0, 0, 0) && retries < 10) {
-    delay(100);
-    retries++;
-  }
+  waitForAPReady();
   
   // Start DNS server for captive portal detection
   startDNSServer();
