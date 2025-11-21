@@ -2061,8 +2061,9 @@ static const unsigned long IDLE_OFF_MS  = 5UL * 60UL * 1000UL;
 static const unsigned long AP_READY_INITIAL_DELAY_MS = 100;
 static const unsigned long AP_READY_RETRY_DELAY_MS = 100;
 static const int AP_READY_MAX_RETRIES = 10;
+static const unsigned long AP_READY_TOTAL_TIMEOUT_MS = AP_READY_INITIAL_DELAY_MS + (AP_READY_MAX_RETRIES * AP_READY_RETRY_DELAY_MS);
 static const IPAddress NULL_IP(0, 0, 0, 0);
-static const char* const AP_DEFAULT_IP = "192.168.4.1";
+static const char* const AP_DEFAULT_IP = "192.168.4.1";  // ESP32 default AP IP (for reference in error messages)
 static inline void recordActivity(){ lastActivityMs = millis(); }
 
 // Helper function to start DNS server for captive portal detection
@@ -2086,8 +2087,7 @@ static inline void waitForAPReady(){
   
   // Log warning if AP didn't get IP after retries (though it may still work with default IP)
   if (WiFi.softAPIP() == NULL_IP) {
-    uint32_t totalTimeoutMs = AP_READY_INITIAL_DELAY_MS + (AP_READY_MAX_RETRIES * AP_READY_RETRY_DELAY_MS);
-    addDebugf("Warning: AP IP not ready after %lu ms (%d retries), proceeding with default %s", totalTimeoutMs, AP_READY_MAX_RETRIES, AP_DEFAULT_IP);
+    addDebugf("Warning: AP IP not ready after %lu ms (%d retries), proceeding with default %s", AP_READY_TOTAL_TIMEOUT_MS, AP_READY_MAX_RETRIES, AP_DEFAULT_IP);
   }
 }
 
