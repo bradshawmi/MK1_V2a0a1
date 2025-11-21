@@ -66,6 +66,7 @@ static AuroraState gAurora[3] = {0};
 #include <pgmspace.h>
 #include <WiFi.h>
 #include <WebServer.h>
+#include <DNSServer.h>
 #include <Preferences.h>
 #include <FastLED.h>
 #include <ArduinoJson.h>
@@ -445,6 +446,7 @@ static uint8_t osGlow[NUM_LEDS] = {0};
 static RingCoord gRingLUT[NUM_LEDS];
 static bool      gRingLUTInited = false;
 static WebServer server(80);
+static DNSServer dnsServer;
 static Preferences prefs;
 
 struct Zone {
@@ -2057,12 +2059,24 @@ static void wifiEnable(){
   if (wifiOn) return;
   WiFi.mode(WIFI_AP);
   WiFi.softAP(AP_SSID, AP_PASS);
+  
+  // Start DNS server for captive portal detection
+  // Redirect all DNS requests to the ESP32's IP address
+  dnsServer.start(53, "*", WiFi.softAPIP());
+  
+  // Ensure web server is ready to accept connections
+  server.begin();
+  
   addDebugf("Wi-Fi ON  AP %s %s", AP_SSID, WiFi.softAPIP().toString().c_str());
   wifiOn = true;
   recordActivity();
 }
 static void wifiDisable(){
   if (!wifiOn) return;
+  
+  // Stop DNS server before disabling WiFi
+  dnsServer.stop();
+  
   WiFi.softAPdisconnect(true);
   WiFi.mode(WIFI_OFF);
   addDebug("Wi-Fi OFF");
@@ -2268,6 +2282,11 @@ delay(100);
 
   // AP up
   WiFi.softAP(AP_SSID, AP_PASS);
+  
+  // Start DNS server for captive portal detection
+  // Redirect all DNS requests to the ESP32's IP address
+  dnsServer.start(53, "*", WiFi.softAPIP());
+  
   addDebugf("AP: %s IP %s", AP_SSID, WiFi.softAPIP().toString().c_str());
   recordActivity();
 
@@ -2449,6 +2468,11 @@ server.begin();
 // ---------- Loop ----------
 static bool wifiOnCached = true; // mirror (avoid linker surprises)
 void loop(){
+  // Process DNS requests when WiFi is on
+  if (wifiOn) {
+    dnsServer.processNextRequest();
+  }
+  
   server.handleClient();
   sampleBattery();
 
