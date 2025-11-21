@@ -2084,8 +2084,8 @@ static inline void waitForAPReady(){
   
   // Log warning if AP didn't get IP after retries (though it may still work with default 192.168.4.1)
   if (WiFi.softAPIP() == IPAddress(0, 0, 0, 0)) {
-    uint32_t totalWaitMs = AP_READY_INITIAL_DELAY_MS + (AP_READY_MAX_RETRIES * AP_READY_RETRY_DELAY_MS);
-    addDebugf("Warning: AP IP not ready after %lums (%d retries), proceeding anyway", totalWaitMs, AP_READY_MAX_RETRIES);
+    uint32_t totalTimeoutMs = AP_READY_INITIAL_DELAY_MS + (AP_READY_MAX_RETRIES * AP_READY_RETRY_DELAY_MS);
+    addDebugf("Warning: AP IP not ready after %lums (%d retries), proceeding with default 192.168.4.1", totalTimeoutMs, AP_READY_MAX_RETRIES);
   }
 }
 
