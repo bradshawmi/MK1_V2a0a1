@@ -2121,12 +2121,13 @@ static void wifiEnable(){
 static void wifiDisable(){
   if (!wifiOn) return;
   
-  // Stop services in reverse order: DNS, then WiFi
-  // Note: WebServer doesn't need explicit stop() - it will naturally stop
-  // responding when WiFi is disabled
+  // Stop services in reverse order: DNS, then disconnect clients, then WiFi
   dnsServer.stop();
   
+  // Disconnect all clients and wait a moment for clean disconnection
   WiFi.softAPdisconnect(true);
+  delay(100);  // Give clients time to disconnect cleanly
+  
   WiFi.mode(WIFI_OFF);
   addDebug("Wi-Fi OFF");
   wifiOn = false;
