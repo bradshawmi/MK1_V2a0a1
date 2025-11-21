@@ -2055,16 +2055,23 @@ static bool wifiOn = true;
 static unsigned long lastActivityMs = 0;
 static const unsigned long IDLE_OFF_MS  = 5UL * 60UL * 1000UL;
 static inline void recordActivity(){ lastActivityMs = millis(); }
+
+// Helper function to start DNS server for captive portal detection
+static inline void startDNSServer(){
+  // Redirect all DNS requests to the ESP32's IP address
+  // This enables captive portal detection on phones
+  dnsServer.start(53, "*", WiFi.softAPIP());
+}
+
 static void wifiEnable(){
   if (wifiOn) return;
   WiFi.mode(WIFI_AP);
   WiFi.softAP(AP_SSID, AP_PASS);
   
-  // Start DNS server for captive portal detection
-  // Redirect all DNS requests to the ESP32's IP address
-  dnsServer.start(53, "*", WiFi.softAPIP());
+  startDNSServer();
   
-  // Ensure web server is ready to accept connections
+  // Restart web server to ensure it's bound to the new WiFi interface
+  // After WiFi.mode(WIFI_OFF) in wifiDisable(), the server needs to rebind
   server.begin();
   
   addDebugf("Wi-Fi ON  AP %s %s", AP_SSID, WiFi.softAPIP().toString().c_str());
@@ -2284,8 +2291,7 @@ delay(100);
   WiFi.softAP(AP_SSID, AP_PASS);
   
   // Start DNS server for captive portal detection
-  // Redirect all DNS requests to the ESP32's IP address
-  dnsServer.start(53, "*", WiFi.softAPIP());
+  startDNSServer();
   
   addDebugf("AP: %s IP %s", AP_SSID, WiFi.softAPIP().toString().c_str());
   recordActivity();
