@@ -2061,6 +2061,8 @@ static const unsigned long IDLE_OFF_MS  = 5UL * 60UL * 1000UL;
 static const unsigned long AP_READY_INITIAL_DELAY_MS = 100;
 static const unsigned long AP_READY_RETRY_DELAY_MS = 100;
 static const int AP_READY_MAX_RETRIES = 10;
+static const IPAddress NULL_IP(0, 0, 0, 0);
+static const char* const AP_DEFAULT_IP = "192.168.4.1";
 static inline void recordActivity(){ lastActivityMs = millis(); }
 
 // Helper function to start DNS server for captive portal detection
@@ -2076,17 +2078,16 @@ static inline void waitForAPReady(){
   delay(AP_READY_INITIAL_DELAY_MS);
   
   // Ensure AP is fully up by checking for valid IP
-  static const IPAddress NULL_IP(0, 0, 0, 0);
   int retries = 0;
   while (WiFi.softAPIP() == NULL_IP && retries < AP_READY_MAX_RETRIES) {
     delay(AP_READY_RETRY_DELAY_MS);
     retries++;
   }
   
-  // Log warning if AP didn't get IP after retries (though it may still work with default 192.168.4.1)
+  // Log warning if AP didn't get IP after retries (though it may still work with default IP)
   if (WiFi.softAPIP() == NULL_IP) {
     uint32_t totalTimeoutMs = AP_READY_INITIAL_DELAY_MS + (AP_READY_MAX_RETRIES * AP_READY_RETRY_DELAY_MS);
-    addDebugf("Warning: AP IP not ready after %lu ms (%d retries), proceeding with default 192.168.4.1", totalTimeoutMs, AP_READY_MAX_RETRIES);
+    addDebugf("Warning: AP IP not ready after %lu ms (%d retries), proceeding with default %s", totalTimeoutMs, AP_READY_MAX_RETRIES, AP_DEFAULT_IP);
   }
 }
 
