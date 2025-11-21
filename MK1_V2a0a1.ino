@@ -2053,20 +2053,57 @@ static bool wifiOn = true;
 static unsigned long lastActivityMs = 0;
 static const unsigned long IDLE_OFF_MS  = 5UL * 60UL * 1000UL;
 static inline void recordActivity(){ lastActivityMs = millis(); }
+
+// Diagnostic: Track last network state for change detection
+static uint8_t lastClientCount = 0;
+static unsigned long lastDiagnosticLogMs = 0;
+static const unsigned long DIAGNOSTIC_LOG_INTERVAL_MS = 10000; // Log every 10 seconds
+
 static void wifiEnable(){
   if (wifiOn) return;
+  
+  addDebug("=== WIFI ENABLE START ===");
+  addDebugf("  Before: mode=%d, IP=%s, clients=%d", 
+            WiFi.getMode(), 
+            WiFi.softAPIP().toString().c_str(),
+            WiFi.softAPgetStationNum());
+  
   WiFi.mode(WIFI_AP);
   WiFi.softAP(AP_SSID, AP_PASS);
+  
+  // Give AP time to initialize
+  delay(100);
+  
+  addDebugf("  After: mode=%d, IP=%s, clients=%d", 
+            WiFi.getMode(),
+            WiFi.softAPIP().toString().c_str(),
+            WiFi.softAPgetStationNum());
   addDebugf("Wi-Fi ON  AP %s %s", AP_SSID, WiFi.softAPIP().toString().c_str());
+  addDebug("=== WIFI ENABLE END ===");
+  
   wifiOn = true;
+  lastClientCount = WiFi.softAPgetStationNum();
   recordActivity();
 }
+
 static void wifiDisable(){
   if (!wifiOn) return;
+  
+  addDebug("=== WIFI DISABLE START ===");
+  addDebugf("  Before: mode=%d, IP=%s, clients=%d", 
+            WiFi.getMode(),
+            WiFi.softAPIP().toString().c_str(),
+            WiFi.softAPgetStationNum());
+  
   WiFi.softAPdisconnect(true);
   WiFi.mode(WIFI_OFF);
+  
+  addDebugf("  After: mode=%d", WiFi.getMode());
   addDebug("Wi-Fi OFF");
+  addDebug("=== WIFI DISABLE END ===");
+  
   wifiOn = false;
+  lastClientCount = 0;
 }
 
 static inline void appendSeg(String& m, const String& seg) {
@@ -2267,8 +2304,15 @@ delay(100);
   }
 
   // AP up
+  addDebug("=== SETUP: Starting WiFi AP ===");
   WiFi.softAP(AP_SSID, AP_PASS);
-  addDebugf("AP: %s IP %s", AP_SSID, WiFi.softAPIP().toString().c_str());
+  delay(100); // Give AP time to initialize
+  addDebugf("AP: %s IP %s, mode=%d, clients=%d", 
+            AP_SSID, 
+            WiFi.softAPIP().toString().c_str(),
+            WiFi.getMode(),
+            WiFi.softAPgetStationNum());
+  lastClientCount = WiFi.softAPgetStationNum();
   recordActivity();
 
   loadPrefs();
@@ -2276,6 +2320,7 @@ delay(100);
   // Auto-apply last active preset on boot (restores full state)
   // ===== Routes =====
 server.on("/update", HTTP_POST, [](){
+    addDebugf("[HTTP] POST /update from client, WiFi clients=%d", WiFi.softAPgetStationNum());
     if (!server.hasArg("plain")) { server.send(400,"text/plain","Missing body"); return; }
     recordActivity();
 
@@ -2419,6 +2464,8 @@ server.on("/presetApply", HTTP_POST, [](){
   return;
 });
 server.on("/status",  HTTP_GET, [](){
+  addDebugf("[HTTP] GET /status from client, WiFi clients=%d", WiFi.softAPgetStationNum());
+  recordActivity();
   const bool batteryReady = (batt.count >= BAT_SAMPLES_PER_WINDOW); sendStatusJSON(); });
   server.on("/battery", HTTP_GET, [](){ server.send(200,"text/plain",String(batteryVoltage,3)); });
 
@@ -2434,6 +2481,8 @@ server.on("/status",  HTTP_GET, [](){
   });
 
   server.on("/", HTTP_GET, [](){
+    addDebugf("[HTTP] GET / (root page) from client, WiFi clients=%d", WiFi.softAPgetStationNum());
+    recordActivity();
     server.send_P(200, "text/html; charset=utf-8", INDEX_HTML);
   });
 server.begin();
@@ -2451,6 +2500,29 @@ static bool wifiOnCached = true; // mirror (avoid linker surprises)
 void loop(){
   server.handleClient();
   sampleBattery();
+
+  // Diagnostic: Periodic network state logging and client change detection
+  if (wifiOn) {
+    unsigned long now = millis();
+    uint8_t currentClientCount = WiFi.softAPgetStationNum();
+    
+    // Log when client count changes
+    if (currentClientCount != lastClientCount) {
+      addDebugf("*** CLIENT COUNT CHANGED: %d -> %d ***", lastClientCount, currentClientCount);
+      addDebugf("    WiFi mode=%d, IP=%s", WiFi.getMode(), WiFi.softAPIP().toString().c_str());
+      lastClientCount = currentClientCount;
+    }
+    
+    // Periodic diagnostic logging every 10 seconds
+    if (now - lastDiagnosticLogMs >= DIAGNOSTIC_LOG_INTERVAL_MS) {
+      addDebugf("[DIAG] WiFi: mode=%d, IP=%s, clients=%d, idle=%lus",
+                WiFi.getMode(),
+                WiFi.softAPIP().toString().c_str(),
+                currentClientCount,
+                (now - lastActivityMs) / 1000);
+      lastDiagnosticLogMs = now;
+    }
+  }
 
   // Wi-Fi inactivity handling
   if (wifiOn) {
