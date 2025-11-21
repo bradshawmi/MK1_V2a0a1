@@ -2076,16 +2076,17 @@ static inline void waitForAPReady(){
   delay(AP_READY_INITIAL_DELAY_MS);
   
   // Ensure AP is fully up by checking for valid IP
+  static const IPAddress NULL_IP(0, 0, 0, 0);
   int retries = 0;
-  while (WiFi.softAPIP() == IPAddress(0, 0, 0, 0) && retries < AP_READY_MAX_RETRIES) {
+  while (WiFi.softAPIP() == NULL_IP && retries < AP_READY_MAX_RETRIES) {
     delay(AP_READY_RETRY_DELAY_MS);
     retries++;
   }
   
   // Log warning if AP didn't get IP after retries (though it may still work with default 192.168.4.1)
-  if (WiFi.softAPIP() == IPAddress(0, 0, 0, 0)) {
+  if (WiFi.softAPIP() == NULL_IP) {
     uint32_t totalTimeoutMs = AP_READY_INITIAL_DELAY_MS + (AP_READY_MAX_RETRIES * AP_READY_RETRY_DELAY_MS);
-    addDebugf("Warning: AP IP not ready after %lums (%d retries), proceeding with default 192.168.4.1", totalTimeoutMs, AP_READY_MAX_RETRIES);
+    addDebugf("Warning: AP IP not ready after %lu ms (%d retries), proceeding with default 192.168.4.1", totalTimeoutMs, AP_READY_MAX_RETRIES);
   }
 }
 
@@ -2110,8 +2111,9 @@ static void wifiEnable(){
 static void wifiDisable(){
   if (!wifiOn) return;
   
-  // Stop services in reverse order: web server, then DNS, then WiFi
-  server.stop();
+  // Stop services in reverse order: DNS, then WiFi
+  // Note: WebServer doesn't need explicit stop() - it will naturally stop
+  // responding when WiFi is disabled
   dnsServer.stop();
   
   WiFi.softAPdisconnect(true);
