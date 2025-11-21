@@ -20,7 +20,7 @@ static inline void auroraUpdate(uint8_t z, uint16_t speed);
 static inline CRGB auroraSample(uint8_t z, uint16_t iGlobal, uint8_t intensity);
 static inline uint8_t auroraHolesMask(uint8_t z, uint16_t iGlobal);
 
-static constexpr char BUILD_TAG[] = "v2a0c1";
+static constexpr char BUILD_TAG[] = "v2a0c0";
 
 enum DFPhase : uint8_t;
 struct DFState;
@@ -66,7 +66,6 @@ static AuroraState gAurora[3] = {0};
 #include <pgmspace.h>
 #include <WiFi.h>
 #include <WebServer.h>
-#include <DNSServer.h>
 #include <Preferences.h>
 #include <FastLED.h>
 #include <ArduinoJson.h>
@@ -446,7 +445,6 @@ static uint8_t osGlow[NUM_LEDS] = {0};
 static RingCoord gRingLUT[NUM_LEDS];
 static bool      gRingLUTInited = false;
 static WebServer server(80);
-static DNSServer dnsServer;
 static Preferences prefs;
 
 struct Zone {
@@ -2054,80 +2052,18 @@ static void savePrefsFromJSON(const ArduinoJson::JsonObject &root){
 static bool wifiOn = true;
 static unsigned long lastActivityMs = 0;
 static const unsigned long IDLE_OFF_MS  = 5UL * 60UL * 1000UL;
-// AP readiness timing constants - WiFi.softAP() is asynchronous
-// Initial delay: 100ms for AP to start initialization
-// Retry delay: 100ms between IP availability checks
-// Max retries: 10 attempts = 1 second total timeout
-static const unsigned long AP_READY_INITIAL_DELAY_MS = 100;
-static const unsigned long AP_READY_RETRY_DELAY_MS = 100;
-static const int AP_READY_MAX_RETRIES = 10;
-static const unsigned long AP_READY_TOTAL_TIMEOUT_MS = AP_READY_INITIAL_DELAY_MS + (AP_READY_MAX_RETRIES * AP_READY_RETRY_DELAY_MS);
-static const IPAddress NULL_IP(0, 0, 0, 0);
-static const char* const AP_DEFAULT_IP = "192.168.4.1";  // ESP32 default AP IP (for reference in error messages)
 static inline void recordActivity(){ lastActivityMs = millis(); }
-
-// Helper function to start DNS server for captive portal detection
-static inline void startDNSServer(){
-  // Redirect all DNS requests to the ESP32's IP address
-  // This enables captive portal detection on phones
-  dnsServer.start(53, "*", WiFi.softAPIP());
-}
-
-// Helper function to wait for AP to be fully ready
-static inline void waitForAPReady(){
-  // WiFi.softAP is asynchronous - wait for it to be fully initialized
-  delay(AP_READY_INITIAL_DELAY_MS);
-  
-  // Ensure AP is fully up by checking for valid IP
-  int retries = 0;
-  while (WiFi.softAPIP() == NULL_IP && retries < AP_READY_MAX_RETRIES) {
-    delay(AP_READY_RETRY_DELAY_MS);
-    retries++;
-  }
-  
-  // Log warning if AP didn't get IP after retries (though it may still work with default IP)
-  if (WiFi.softAPIP() == NULL_IP) {
-    addDebugf("Warning: AP IP not ready after %lu ms (%d retries), proceeding with default %s", AP_READY_TOTAL_TIMEOUT_MS, AP_READY_MAX_RETRIES, AP_DEFAULT_IP);
-  }
-}
-
 static void wifiEnable(){
   if (wifiOn) return;
-  
-  // Set WiFi mode and configure AP with fixed IP configuration
-  // This ensures consistent network topology across WiFi restarts
   WiFi.mode(WIFI_AP);
-  
-  // Configure fixed IP for AP (192.168.4.1, gateway 192.168.4.1, subnet 255.255.255.0)
-  // This prevents DHCP/ARP issues when WiFi is restarted
-  IPAddress local_IP(192, 168, 4, 1);
-  IPAddress gateway(192, 168, 4, 1);
-  IPAddress subnet(255, 255, 255, 0);
-  WiFi.softAPConfig(local_IP, gateway, subnet);
-  
   WiFi.softAP(AP_SSID, AP_PASS);
-  
-  // Wait for AP to be fully ready before starting services
-  waitForAPReady();
-  
-  // Now start DNS and web server services
-  startDNSServer();
-  server.begin();
-  
   addDebugf("Wi-Fi ON  AP %s %s", AP_SSID, WiFi.softAPIP().toString().c_str());
   wifiOn = true;
   recordActivity();
 }
 static void wifiDisable(){
   if (!wifiOn) return;
-  
-  // Stop services in reverse order: DNS, then disconnect clients, then WiFi
-  dnsServer.stop();
-  
-  // Disconnect all clients and wait a moment for clean disconnection
   WiFi.softAPdisconnect(true);
-  delay(100);  // Give clients time to disconnect cleanly
-  
   WiFi.mode(WIFI_OFF);
   addDebug("Wi-Fi OFF");
   wifiOn = false;
@@ -2330,22 +2266,8 @@ delay(100);
     if ((millis() - t0) < BUTTON_HOLD_MS) enterDeepSleepNow("shortWake");
   }
 
-  // AP up with fixed IP configuration
-  // Configure fixed IP for AP (192.168.4.1, gateway 192.168.4.1, subnet 255.255.255.0)
-  // This ensures consistent network topology across reboots
-  IPAddress local_IP(192, 168, 4, 1);
-  IPAddress gateway(192, 168, 4, 1);
-  IPAddress subnet(255, 255, 255, 0);
-  WiFi.softAPConfig(local_IP, gateway, subnet);
-  
+  // AP up
   WiFi.softAP(AP_SSID, AP_PASS);
-  
-  // Wait for AP to be fully ready before starting services
-  waitForAPReady();
-  
-  // Start DNS server for captive portal detection
-  startDNSServer();
-  
   addDebugf("AP: %s IP %s", AP_SSID, WiFi.softAPIP().toString().c_str());
   recordActivity();
 
@@ -2527,11 +2449,6 @@ server.begin();
 // ---------- Loop ----------
 static bool wifiOnCached = true; // mirror (avoid linker surprises)
 void loop(){
-  // Process DNS requests when WiFi is on
-  if (wifiOn) {
-    dnsServer.processNextRequest();
-  }
-  
   server.handleClient();
   sampleBattery();
 
