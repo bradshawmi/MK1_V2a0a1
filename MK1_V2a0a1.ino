@@ -2054,6 +2054,10 @@ static void savePrefsFromJSON(const ArduinoJson::JsonObject &root){
 static bool wifiOn = true;
 static unsigned long lastActivityMs = 0;
 static const unsigned long IDLE_OFF_MS  = 5UL * 60UL * 1000UL;
+// AP readiness timing constants - WiFi.softAP() is asynchronous
+// Initial delay: 100ms for AP to start initialization
+// Retry delay: 100ms between IP availability checks
+// Max retries: 10 attempts = 1 second total timeout
 static const unsigned long AP_READY_INITIAL_DELAY_MS = 100;
 static const unsigned long AP_READY_RETRY_DELAY_MS = 100;
 static const int AP_READY_MAX_RETRIES = 10;
@@ -2080,7 +2084,8 @@ static inline void waitForAPReady(){
   
   // Log warning if AP didn't get IP after retries (though it may still work with default 192.168.4.1)
   if (WiFi.softAPIP() == IPAddress(0, 0, 0, 0)) {
-    addDebug("Warning: AP IP not ready after timeout, proceeding anyway");
+    uint32_t totalWaitMs = AP_READY_INITIAL_DELAY_MS + (AP_READY_MAX_RETRIES * AP_READY_RETRY_DELAY_MS);
+    addDebugf("Warning: AP IP not ready after %lums (%d retries), proceeding anyway", totalWaitMs, AP_READY_MAX_RETRIES);
   }
 }
 
