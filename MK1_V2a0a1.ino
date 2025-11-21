@@ -2094,8 +2094,17 @@ static inline void waitForAPReady(){
 static void wifiEnable(){
   if (wifiOn) return;
   
-  // Set WiFi mode and configure AP
+  // Set WiFi mode and configure AP with fixed IP configuration
+  // This ensures consistent network topology across WiFi restarts
   WiFi.mode(WIFI_AP);
+  
+  // Configure fixed IP for AP (192.168.4.1, gateway 192.168.4.1, subnet 255.255.255.0)
+  // This prevents DHCP/ARP issues when WiFi is restarted
+  IPAddress local_IP(192, 168, 4, 1);
+  IPAddress gateway(192, 168, 4, 1);
+  IPAddress subnet(255, 255, 255, 0);
+  WiFi.softAPConfig(local_IP, gateway, subnet);
+  
   WiFi.softAP(AP_SSID, AP_PASS);
   
   // Wait for AP to be fully ready before starting services
@@ -2320,7 +2329,14 @@ delay(100);
     if ((millis() - t0) < BUTTON_HOLD_MS) enterDeepSleepNow("shortWake");
   }
 
-  // AP up
+  // AP up with fixed IP configuration
+  // Configure fixed IP for AP (192.168.4.1, gateway 192.168.4.1, subnet 255.255.255.0)
+  // This ensures consistent network topology across reboots
+  IPAddress local_IP(192, 168, 4, 1);
+  IPAddress gateway(192, 168, 4, 1);
+  IPAddress subnet(255, 255, 255, 0);
+  WiFi.softAPConfig(local_IP, gateway, subnet);
+  
   WiFi.softAP(AP_SSID, AP_PASS);
   
   // Wait for AP to be fully ready before starting services
