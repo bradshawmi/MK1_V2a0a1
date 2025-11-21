@@ -2054,6 +2054,9 @@ static void savePrefsFromJSON(const ArduinoJson::JsonObject &root){
 static bool wifiOn = true;
 static unsigned long lastActivityMs = 0;
 static const unsigned long IDLE_OFF_MS  = 5UL * 60UL * 1000UL;
+static const unsigned long AP_READY_INITIAL_DELAY_MS = 100;
+static const unsigned long AP_READY_RETRY_DELAY_MS = 100;
+static const int AP_READY_MAX_RETRIES = 10;
 static inline void recordActivity(){ lastActivityMs = millis(); }
 
 // Helper function to start DNS server for captive portal detection
@@ -2066,13 +2069,18 @@ static inline void startDNSServer(){
 // Helper function to wait for AP to be fully ready
 static inline void waitForAPReady(){
   // WiFi.softAP is asynchronous - wait for it to be fully initialized
-  delay(100);
+  delay(AP_READY_INITIAL_DELAY_MS);
   
   // Ensure AP is fully up by checking for valid IP
   int retries = 0;
-  while (WiFi.softAPIP() == IPAddress(0, 0, 0, 0) && retries < 10) {
-    delay(100);
+  while (WiFi.softAPIP() == IPAddress(0, 0, 0, 0) && retries < AP_READY_MAX_RETRIES) {
+    delay(AP_READY_RETRY_DELAY_MS);
     retries++;
+  }
+  
+  // Log warning if AP didn't get IP after retries (though it may still work with default 192.168.4.1)
+  if (WiFi.softAPIP() == IPAddress(0, 0, 0, 0)) {
+    addDebug("Warning: AP IP not ready after timeout, proceeding anyway");
   }
 }
 
