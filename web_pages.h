@@ -141,20 +141,25 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
       <strong>IP Address:</strong> <span id="wifiIP">-</span>
     </div>
     
-    <label style="font-weight:600; color:#111; margin-top:10px">Home WiFi SSID</label>
-    <input type="text" id="wifiSSID" placeholder="Enter WiFi network name" maxlength="32">
+    <div style="display:flex; gap:8px; align-items:flex-end">
+      <div style="flex:1">
+        <label style="font-weight:600; color:#111; margin-top:10px">Home WiFi SSID</label>
+        <select id="wifiSSIDDropdown" style="width:100%; height:38px; font-size:1rem; padding:4px">
+          <option value="">-- Select Network --</option>
+        </select>
+      </div>
+      <button id="scanNetworksBtn" style="padding:10px 12px; height:38px; background:#9C27B0; color:#fff; border:0; border-radius:6px; cursor:pointer; white-space:nowrap">Scan Networks</button>
+    </div>
+    <input type="text" id="wifiSSID" placeholder="Or enter WiFi network name manually" maxlength="32" style="margin-top:8px">
     
     <label style="font-weight:600; color:#111; margin-top:10px">Home WiFi Password</label>
-    <input type="password" id="wifiPassword" placeholder="Enter WiFi password" maxlength="64">
+    <input type="text" id="wifiPassword" placeholder="Enter WiFi password" maxlength="64">
     
     <label style="font-weight:600; color:#111; margin-top:10px">Access Point SSID</label>
     <input type="text" id="apSSID" placeholder="ArcReactorMK1" maxlength="32">
     
     <label style="font-weight:600; color:#111; margin-top:10px">Access Point Password</label>
-    <input type="password" id="apPassword" placeholder="Minimum 8 characters" maxlength="64">
-    <div class="small" style="color:#FF5722; margin-top:4px">
-      ⚠️ Security: Change the default AP password to prevent unauthorized access
-    </div>
+    <input type="text" id="apPassword" placeholder="Minimum 8 characters" maxlength="64">
     
     <div class="gridA" style="margin-top:10px;">
       <button id="wifiSaveBtn" style="background:#4CAF50; color:#fff">Save WiFi Settings</button>
@@ -638,6 +643,53 @@ function updateWifiIdleLabel(){
         if (apSsidEl && !apSsidEl.value) apSsidEl.value = j.apSSID;
       }
     } catch(e) {}
+  }
+  
+  // Network scanning functionality
+  const scanBtn = document.getElementById('scanNetworksBtn');
+  const dropdown = document.getElementById('wifiSSIDDropdown');
+  const ssidInput = document.getElementById('wifiSSID');
+  
+  if (scanBtn && dropdown && ssidInput) {
+    scanBtn.addEventListener('click', ()=>{
+      scanBtn.disabled = true;
+      scanBtn.textContent = 'Scanning...';
+      
+      fetch('/wifiScan')
+        .then(r=>r.json())
+        .then(data=>{
+          dropdown.innerHTML = '<option value="">-- Select Network --</option>';
+          
+          if (data.networks && data.networks.length > 0) {
+            data.networks.forEach(net=>{
+              const opt = document.createElement('option');
+              opt.value = net.ssid;
+              const lockIcon = net.secure ? '🔒 ' : '';
+              opt.textContent = `${lockIcon}${net.ssid} (${net.rssi} dBm)`;
+              dropdown.appendChild(opt);
+            });
+          } else {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = '-- No networks found --';
+            dropdown.appendChild(opt);
+          }
+          
+          scanBtn.disabled = false;
+          scanBtn.textContent = 'Scan Networks';
+        })
+        .catch(err=>{
+          alert('Error scanning networks: ' + err);
+          scanBtn.disabled = false;
+          scanBtn.textContent = 'Scan Networks';
+        });
+    });
+    
+    dropdown.addEventListener('change', ()=>{
+      if (dropdown.value) {
+        ssidInput.value = dropdown.value;
+      }
+    });
   }
   
   const saveBtn = document.getElementById('wifiSaveBtn');

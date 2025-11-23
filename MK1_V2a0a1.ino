@@ -2540,15 +2540,7 @@ server.on("/status",  HTTP_GET, [](){
         server.send(400,"text/plain","AP password must be at least 8 characters");
         return;
       }
-      // Security: Require password change from default weak password
-      if (apPassword.length() == 0) {
-        String currentAP = prefReadString(PREF_AP_PASS, "arcreactor");
-        if (currentAP == "arcreactor") {
-          server.send(400,"text/plain","Please set a secure AP password (min 8 characters). Default password is not secure.");
-          return;
-        }
-        apPassword = "arcreactor";  // Fallback to default only if already using non-default
-      }
+      if (apPassword.length() == 0) apPassword = "arcreactor";
       prefWriteString(PREF_AP_PASS, apPassword);
     }
     
@@ -2574,6 +2566,29 @@ server.on("/status",  HTTP_GET, [](){
     }
     
     server.send(200,"text/plain","Reconnection attempted");
+  });
+  
+  // WiFi network scanner endpoint
+  server.on("/wifiScan", HTTP_GET, [](){
+    recordActivity();
+    addDebug("WiFi scan requested");
+    
+    int n = WiFi.scanNetworks();
+    StaticJsonDocument<2048> doc;
+    auto networks = doc["networks"].to<JsonArray>();
+    
+    for (int i = 0; i < n && i < 20; i++) {  // Limit to 20 networks
+      JsonObject net = networks.add<JsonObject>();
+      net["ssid"] = WiFi.SSID(i);
+      net["rssi"] = WiFi.RSSI(i);
+      net["secure"] = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
+    }
+    
+    WiFi.scanDelete();  // Free memory
+    String out;
+    serializeJson(doc, out);
+    server.send(200, "application/json", out);
+    addDebugf("WiFi scan complete: %d networks found", n);
   });
   
   
