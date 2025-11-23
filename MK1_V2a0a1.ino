@@ -516,6 +516,9 @@ static void addDebug(const char* s){
   int i = debugIdx % DEBUG_LINES;
   snprintf(debugLog[i], sizeof(debugLog[i]), "%lus: %s", (unsigned long)sec, s ? s : "");
   debugIdx++;
+  
+  // Also print to Serial for diagnostic purposes
+  Serial.printf("%lus: %s\n", (unsigned long)sec, s ? s : "");
 }
 static void addDebugf(const char* fmt, ...){
   char tmp[48];
