@@ -388,7 +388,9 @@ static String wifiPassword = "";
 static String apSSID = "ArcReactorMK1";
 static String apPassword = "arcreactor";
 static bool wifiStationMode = false;  // true if connected to home WiFi, false if in AP mode
-static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 60000UL;  // 1 minute timeout
+static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 60000UL;  // 1 minute timeout for boot
+static const unsigned long WIFI_RECONNECT_TIMEOUT_MS = 10000UL;  // 10 second timeout for reconnect
+static const unsigned long WIFI_MANUAL_RECONNECT_TIMEOUT_MS = 30000UL;  // 30 second timeout for manual reconnect
 
 static const float FLICKER_START_V = 3.60f;
 static const float FULL_OFF_V      = 3.51f;
@@ -1962,18 +1964,29 @@ static bool attemptWiFiConnection(const String& ssid, const String& password, un
   WiFi.begin(ssid.c_str(), password.c_str());
   
   unsigned long startMs = millis();
+  unsigned long lastDot = 0;
   while (WiFi.status() != WL_CONNECTED && (millis() - startMs) < timeoutMs) {
     delay(500);
-    Serial.print(".");
+    if (millis() - lastDot >= 2000) {  // Print status every 2 seconds
+      Serial.printf(" [%lu/%lu ms] ", millis() - startMs, timeoutMs);
+      lastDot = millis();
+    } else {
+      Serial.print(".");
+    }
   }
   Serial.println();
   
   if (WiFi.status() == WL_CONNECTED) {
-    addDebugf("WiFi connected! IP: %s", WiFi.localIP().toString().c_str());
+    addDebugf("WiFi connected! IP: %s RSSI: %d dBm", WiFi.localIP().toString().c_str(), WiFi.RSSI());
     wifiStationMode = true;
     return true;
   } else {
-    addDebugf("WiFi connection failed after %lu ms", timeoutMs);
+    wl_status_t status = WiFi.status();
+    const char* statusMsg = (status == WL_NO_SSID_AVAIL) ? "SSID not found" :
+                            (status == WL_CONNECT_FAILED) ? "Connection failed" :
+                            (status == WL_CONNECTION_LOST) ? "Connection lost" :
+                            "Timeout";
+    addDebugf("WiFi connection failed: %s", statusMsg);
     WiFi.disconnect(true);
     return false;
   }
@@ -2107,8 +2120,8 @@ static inline void recordActivity(){ lastActivityMs = millis(); }
 static void wifiEnable(){
   if (wifiOn) return;
   
-  // Try station mode first if credentials exist
-  bool connected = attemptWiFiConnection(wifiSSID, wifiPassword, 10000UL);  // 10 second timeout for re-enable
+  // Try station mode first if credentials exist (shorter timeout for re-enable)
+  bool connected = attemptWiFiConnection(wifiSSID, wifiPassword, WIFI_RECONNECT_TIMEOUT_MS);
   if (!connected) {
     startAPMode();
   }
@@ -2506,20 +2519,36 @@ server.on("/status",  HTTP_GET, [](){
     
     if (doc.containsKey("wifiSSID")) {
       wifiSSID = doc["wifiSSID"].as<String>();
+      wifiSSID.trim();  // Remove leading/trailing whitespace
       prefWriteString(PREF_WIFI_SSID, wifiSSID);
     }
     if (doc.containsKey("wifiPassword")) {
       wifiPassword = doc["wifiPassword"].as<String>();
+      wifiPassword.trim();  // Remove leading/trailing whitespace
       prefWriteString(PREF_WIFI_PASS, wifiPassword);
     }
     if (doc.containsKey("apSSID")) {
       apSSID = doc["apSSID"].as<String>();
+      apSSID.trim();
       if (apSSID.length() == 0) apSSID = "ArcReactorMK1";
       prefWriteString(PREF_AP_SSID, apSSID);
     }
     if (doc.containsKey("apPassword")) {
       apPassword = doc["apPassword"].as<String>();
-      if (apPassword.length() < 8) apPassword = "arcreactor";
+      apPassword.trim();
+      if (apPassword.length() > 0 && apPassword.length() < 8) {
+        server.send(400,"text/plain","AP password must be at least 8 characters");
+        return;
+      }
+      // Security: Require password change from default weak password
+      if (apPassword.length() == 0) {
+        String currentAP = prefReadString(PREF_AP_PASS, "arcreactor");
+        if (currentAP == "arcreactor") {
+          server.send(400,"text/plain","Please set a secure AP password (min 8 characters). Default password is not secure.");
+          return;
+        }
+        apPassword = "arcreactor";  // Fallback to default only if already using non-default
+      }
       prefWriteString(PREF_AP_PASS, apPassword);
     }
     
@@ -2538,8 +2567,8 @@ server.on("/status",  HTTP_GET, [](){
       WiFi.softAPdisconnect(true);
     }
     
-    // Try station mode first
-    bool connected = attemptWiFiConnection(wifiSSID, wifiPassword, 30000UL);
+    // Try station mode first with manual reconnect timeout
+    bool connected = attemptWiFiConnection(wifiSSID, wifiPassword, WIFI_MANUAL_RECONNECT_TIMEOUT_MS);
     if (!connected) {
       startAPMode();
     }

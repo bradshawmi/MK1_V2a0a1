@@ -152,6 +152,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
     
     <label style="font-weight:600; color:#111; margin-top:10px">Access Point Password</label>
     <input type="password" id="apPassword" placeholder="Minimum 8 characters" maxlength="64">
+    <div class="small" style="color:#FF5722; margin-top:4px">
+      ⚠️ Security: Change the default AP password to prevent unauthorized access
+    </div>
     
     <div class="gridA" style="margin-top:10px;">
       <button id="wifiSaveBtn" style="background:#4CAF50; color:#fff">Save WiFi Settings</button>
@@ -602,6 +605,8 @@ function updateWifiIdleLabel(){
 
 // WiFi configuration handlers
 (function(){
+  const WIFI_RECONNECT_RELOAD_DELAY_MS = 3000;  // Wait 3 seconds before reload after reconnect
+  
   function updateWiFiStatus(j) {
     try {
       const statusEl = document.getElementById('wifiStatus');
@@ -675,7 +680,7 @@ function updateWifiIdleLabel(){
         .then(r=>r.text())
         .then(msg=>{
           alert(msg + ' Please wait a moment and check status.');
-          setTimeout(()=>{ window.location.reload(); }, 3000);
+          setTimeout(()=>{ window.location.reload(); }, WIFI_RECONNECT_RELOAD_DELAY_MS);
         })
         .catch(err=>{
           alert('Error reconnecting: ' + err);
