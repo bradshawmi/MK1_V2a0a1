@@ -518,10 +518,9 @@ static void addDebug(const char* s){
   debugIdx++;
   
   // Also print to Serial for diagnostic purposes
-  if (Serial) {
-    Serial.printf("%lus: %s\n", (unsigned long)sec, s ? s : "");
-    Serial.flush(); // Ensure data is sent immediately
-  }
+  // Serial is always available after Serial.begin() in setup()
+  Serial.printf("%lus: %s\n", (unsigned long)sec, s ? s : "");
+  Serial.flush(); // Ensure data is sent immediately
 }
 static void addDebugf(const char* fmt, ...){
   char tmp[48];
