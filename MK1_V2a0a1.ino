@@ -382,6 +382,14 @@ static inline uint16_t clampSpeed(uint16_t v){ return constrain(v, 10, 1000); }
 static const char* AP_SSID = "ArcReactorMK1";
 static const char* AP_PASS = "arcreactor";
 
+// WiFi credentials (loaded from preferences)
+static String wifiSSID = "";
+static String wifiPassword = "";
+static String apSSID = "ArcReactorMK1";
+static String apPassword = "arcreactor";
+static bool wifiStationMode = false;  // true if connected to home WiFi, false if in AP mode
+static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 60000UL;  // 1 minute timeout
+
 static const float FLICKER_START_V = 3.60f;
 static const float FULL_OFF_V      = 3.51f;
 static const unsigned long AUTO_SLEEP_GRACE_MS = 10UL * 60UL * 1000UL;
@@ -1935,6 +1943,49 @@ static void loadFavorites(){
   }
   prefEnd(prefs);
 }
+static void loadWiFiCredentials(){
+  wifiSSID = prefReadString(PREF_WIFI_SSID, "");
+  wifiPassword = prefReadString(PREF_WIFI_PASS, "");
+  apSSID = prefReadString(PREF_AP_SSID, "ArcReactorMK1");
+  apPassword = prefReadString(PREF_AP_PASS, "arcreactor");
+  addDebugf("WiFi creds loaded: SSID=%s", wifiSSID.c_str());
+}
+
+static bool attemptWiFiConnection(const String& ssid, const String& password, unsigned long timeoutMs) {
+  if (ssid.length() == 0) {
+    addDebug("No WiFi SSID configured, skipping station mode");
+    return false;
+  }
+  
+  addDebugf("Attempting WiFi connection to: %s", ssid.c_str());
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid.c_str(), password.c_str());
+  
+  unsigned long startMs = millis();
+  while (WiFi.status() != WL_CONNECTED && (millis() - startMs) < timeoutMs) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println();
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    addDebugf("WiFi connected! IP: %s", WiFi.localIP().toString().c_str());
+    wifiStationMode = true;
+    return true;
+  } else {
+    addDebugf("WiFi connection failed after %lu ms", timeoutMs);
+    WiFi.disconnect(true);
+    return false;
+  }
+}
+
+static void startAPMode() {
+  addDebugf("Starting AP mode: %s", apSSID.c_str());
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(apSSID.c_str(), apPassword.c_str());
+  addDebugf("AP started: %s IP: %s", apSSID.c_str(), WiFi.softAPIP().toString().c_str());
+  wifiStationMode = false;
+}
 static void saveFavorite(uint8_t idx, const String &hex){
   if (idx>8) return;
   favHex[idx]=hex;
@@ -2055,15 +2106,22 @@ static const unsigned long IDLE_OFF_MS  = 5UL * 60UL * 1000UL;
 static inline void recordActivity(){ lastActivityMs = millis(); }
 static void wifiEnable(){
   if (wifiOn) return;
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP(AP_SSID, AP_PASS);
-  addDebugf("Wi-Fi ON  AP %s %s", AP_SSID, WiFi.softAPIP().toString().c_str());
+  
+  // Try station mode first if credentials exist
+  bool connected = attemptWiFiConnection(wifiSSID, wifiPassword, 10000UL);  // 10 second timeout for re-enable
+  if (!connected) {
+    startAPMode();
+  }
   wifiOn = true;
   recordActivity();
 }
 static void wifiDisable(){
   if (!wifiOn) return;
-  WiFi.softAPdisconnect(true);
+  if (wifiStationMode) {
+    WiFi.disconnect(true);
+  } else {
+    WiFi.softAPdisconnect(true);
+  }
   WiFi.mode(WIFI_OFF);
   addDebug("Wi-Fi OFF");
   wifiOn = false;
@@ -2142,6 +2200,17 @@ static void sendStatusJSON(){
   doc["simVbat"]        = simVbat;
     doc["wifiIdleAutoOff"] = wifiIdleAutoOff;
 doc["activePreset"]   = activePreset;
+  
+  // WiFi status information
+  doc["wifiStationMode"] = wifiStationMode;
+  doc["wifiSSID"] = wifiSSID;
+  doc["wifiConnected"] = (wifiStationMode && WiFi.status() == WL_CONNECTED);
+  if (wifiStationMode && WiFi.status() == WL_CONNECTED) {
+    doc["wifiIP"] = WiFi.localIP().toString();
+  } else if (!wifiStationMode) {
+    doc["wifiIP"] = WiFi.softAPIP().toString();
+  }
+  doc["apSSID"] = apSSID;
 
   const char* phaseName = nullptr;
   for (int zi=0; zi<3; ++zi){
@@ -2266,9 +2335,14 @@ delay(100);
     if ((millis() - t0) < BUTTON_HOLD_MS) enterDeepSleepNow("shortWake");
   }
 
-  // AP up
-  WiFi.softAP(AP_SSID, AP_PASS);
-  addDebugf("AP: %s IP %s", AP_SSID, WiFi.softAPIP().toString().c_str());
+  // Load WiFi credentials from preferences
+  loadWiFiCredentials();
+  
+  // Attempt to connect to home WiFi first, fallback to AP mode
+  bool connected = attemptWiFiConnection(wifiSSID, wifiPassword, WIFI_CONNECT_TIMEOUT_MS);
+  if (!connected) {
+    startAPMode();
+  }
   recordActivity();
 
   loadPrefs();
@@ -2422,6 +2496,57 @@ server.on("/status",  HTTP_GET, [](){
   const bool batteryReady = (batt.count >= BAT_SAMPLES_PER_WINDOW); sendStatusJSON(); });
   server.on("/battery", HTTP_GET, [](){ server.send(200,"text/plain",String(batteryVoltage,3)); });
 
+  // WiFi configuration endpoints
+  server.on("/wifiSave", HTTP_POST, [](){
+    if (!server.hasArg("plain")) { server.send(400,"text/plain","Missing body"); return; }
+    recordActivity();
+    StaticJsonDocument<512> doc;
+    DeserializationError err = deserializeJson(doc, server.arg("plain"));
+    if (err){ server.send(400,"text/plain","Bad JSON"); return; }
+    
+    if (doc.containsKey("wifiSSID")) {
+      wifiSSID = doc["wifiSSID"].as<String>();
+      prefWriteString(PREF_WIFI_SSID, wifiSSID);
+    }
+    if (doc.containsKey("wifiPassword")) {
+      wifiPassword = doc["wifiPassword"].as<String>();
+      prefWriteString(PREF_WIFI_PASS, wifiPassword);
+    }
+    if (doc.containsKey("apSSID")) {
+      apSSID = doc["apSSID"].as<String>();
+      if (apSSID.length() == 0) apSSID = "ArcReactorMK1";
+      prefWriteString(PREF_AP_SSID, apSSID);
+    }
+    if (doc.containsKey("apPassword")) {
+      apPassword = doc["apPassword"].as<String>();
+      if (apPassword.length() < 8) apPassword = "arcreactor";
+      prefWriteString(PREF_AP_PASS, apPassword);
+    }
+    
+    addDebug("WiFi config saved");
+    server.send(200,"text/plain","WiFi settings saved. Restart to apply.");
+  });
+  
+  server.on("/wifiReconnect", HTTP_POST, [](){
+    recordActivity();
+    addDebug("Manual WiFi reconnect requested");
+    
+    // Disconnect current connection
+    if (wifiStationMode) {
+      WiFi.disconnect(true);
+    } else {
+      WiFi.softAPdisconnect(true);
+    }
+    
+    // Try station mode first
+    bool connected = attemptWiFiConnection(wifiSSID, wifiPassword, 30000UL);
+    if (!connected) {
+      startAPMode();
+    }
+    
+    server.send(200,"text/plain","Reconnection attempted");
+  });
+  
   
   // --- Debug: Read-only preset dump (v4c7b3) ---
   server.on("/presetDump", HTTP_GET, [](){

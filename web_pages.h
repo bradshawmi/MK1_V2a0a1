@@ -134,6 +134,37 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
 </div>
 
 <details class="card">
+  <summary class="section-title">WiFi CONFIGURATION <span class="subhead">(Network Settings)</span></summary>
+  <div style="margin-top:10px">
+    <div class="small" style="margin-bottom:10px; color:#000">
+      <strong>Status:</strong> <span id="wifiStatus">Loading...</span><br>
+      <strong>IP Address:</strong> <span id="wifiIP">-</span>
+    </div>
+    
+    <label style="font-weight:600; color:#111; margin-top:10px">Home WiFi SSID</label>
+    <input type="text" id="wifiSSID" placeholder="Enter WiFi network name" maxlength="32">
+    
+    <label style="font-weight:600; color:#111; margin-top:10px">Home WiFi Password</label>
+    <input type="password" id="wifiPassword" placeholder="Enter WiFi password" maxlength="64">
+    
+    <label style="font-weight:600; color:#111; margin-top:10px">Access Point SSID</label>
+    <input type="text" id="apSSID" placeholder="ArcReactorMK1" maxlength="32">
+    
+    <label style="font-weight:600; color:#111; margin-top:10px">Access Point Password</label>
+    <input type="password" id="apPassword" placeholder="Minimum 8 characters" maxlength="64">
+    
+    <div class="gridA" style="margin-top:10px;">
+      <button id="wifiSaveBtn" style="background:#4CAF50; color:#fff">Save WiFi Settings</button>
+      <button id="wifiReconnectBtn" style="background:#0a84ff; color:#fff">Reconnect Now</button>
+    </div>
+    
+    <div class="cardNote" style="margin-top:10px">
+      On boot, the device attempts to connect to home WiFi for 1 minute. If unsuccessful, it creates an Access Point with the configured SSID/password. Changes to AP settings require a restart.
+    </div>
+  </div>
+</details>
+
+<details class="card">
   <summary class="section-title">PLASMA HALO <span class="subhead">(Outer Ring)</span></summary>
   <div class="gridA">
     <div>
@@ -568,6 +599,94 @@ function updateWifiIdleLabel(){
     if (cb){ cb.addEventListener('change', ()=>{ updateWifiIdleLabel(); }); }
   }catch(e){}
 })();
+
+// WiFi configuration handlers
+(function(){
+  function updateWiFiStatus(j) {
+    try {
+      const statusEl = document.getElementById('wifiStatus');
+      const ipEl = document.getElementById('wifiIP');
+      if (!statusEl || !ipEl) return;
+      
+      if (j.wifiStationMode) {
+        if (j.wifiConnected) {
+          statusEl.textContent = 'Connected to ' + (j.wifiSSID || 'home WiFi');
+          statusEl.style.color = '#4CAF50';
+        } else {
+          statusEl.textContent = 'Station mode (disconnected)';
+          statusEl.style.color = '#FF9800';
+        }
+      } else {
+        statusEl.textContent = 'Access Point mode: ' + (j.apSSID || 'ArcReactorMK1');
+        statusEl.style.color = '#2196F3';
+      }
+      
+      ipEl.textContent = j.wifiIP || '-';
+      
+      // Populate WiFi fields
+      if (j.wifiSSID !== undefined) {
+        const ssidEl = document.getElementById('wifiSSID');
+        if (ssidEl && !ssidEl.value) ssidEl.value = j.wifiSSID;
+      }
+      if (j.apSSID !== undefined) {
+        const apSsidEl = document.getElementById('apSSID');
+        if (apSsidEl && !apSsidEl.value) apSsidEl.value = j.apSSID;
+      }
+    } catch(e) {}
+  }
+  
+  const saveBtn = document.getElementById('wifiSaveBtn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', ()=>{
+      const ssid = document.getElementById('wifiSSID').value;
+      const pass = document.getElementById('wifiPassword').value;
+      const apSsid = document.getElementById('apSSID').value;
+      const apPass = document.getElementById('apPassword').value;
+      
+      if (apPass && apPass.length > 0 && apPass.length < 8) {
+        alert('AP password must be at least 8 characters or empty');
+        return;
+      }
+      
+      const data = {
+        wifiSSID: ssid,
+        wifiPassword: pass,
+        apSSID: apSsid,
+        apPassword: apPass
+      };
+      
+      fetch('/wifiSave', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+        .then(r=>r.text())
+        .then(msg=>{
+          alert(msg);
+        })
+        .catch(err=>{
+          alert('Error saving WiFi settings: ' + err);
+        });
+    });
+  }
+  
+  const reconnectBtn = document.getElementById('wifiReconnectBtn');
+  if (reconnectBtn) {
+    reconnectBtn.addEventListener('click', ()=>{
+      if (!confirm('Reconnect WiFi now? This may temporarily disconnect you.')) return;
+      
+      fetch('/wifiReconnect', {method:'POST'})
+        .then(r=>r.text())
+        .then(msg=>{
+          alert(msg + ' Please wait a moment and check status.');
+          setTimeout(()=>{ window.location.reload(); }, 3000);
+        })
+        .catch(err=>{
+          alert('Error reconnecting: ' + err);
+        });
+    });
+  }
+  
+  // Update WiFi status on initial load and periodic updates
+  window.updateWiFiStatusFromJSON = updateWiFiStatus;
+})();
+
 function safeInit(){ try{ attachPicker(); bindSwatches(); fetchPresets(); }catch(e){} }
 document.addEventListener('DOMContentLoaded', safeInit);
 
@@ -580,6 +699,7 @@ fetch('/status').then(r=>r.json()).then(j=>{
   document.getElementById('batteryMB').innerText=(j.battery||0).toFixed(2);
   document.getElementById('messages').innerText=j.message||'';
   hydrateEffects(j);
+  if (typeof updateWiFiStatusFromJSON === 'function') updateWiFiStatusFromJSON(j);
 });
 try{ if(typeof j!=='undefined' && j && typeof j.activePreset==='number'){ lastActivePreset=j.activePreset; } }catch(e){}
 setInterval(()=>{
@@ -587,6 +707,7 @@ setInterval(()=>{
     document.getElementById('batteryMB').innerText=(j.battery||0).toFixed(2);
     document.getElementById('messages').innerText=j.message||'';
     if (typeof j.activePreset === 'number') setActivePresetButton(j.activePreset);
+    if (typeof updateWiFiStatusFromJSON === 'function') updateWiFiStatusFromJSON(j);
   });
 }, 1000);
 </script>
