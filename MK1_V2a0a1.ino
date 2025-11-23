@@ -518,7 +518,10 @@ static void addDebug(const char* s){
   debugIdx++;
   
   // Also print to Serial for diagnostic purposes
-  Serial.printf("%lus: %s\n", (unsigned long)sec, s ? s : "");
+  if (Serial) {
+    Serial.printf("%lus: %s\n", (unsigned long)sec, s ? s : "");
+    Serial.flush(); // Ensure data is sent immediately
+  }
 }
 static void addDebugf(const char* fmt, ...){
   char tmp[48];
@@ -2260,6 +2263,12 @@ static void applyActivePresetOnBoot(){
 
 void setup(){
   Serial.begin(115200);
+  delay(500); // Give Serial time to initialize
+  
+  // Initial Serial test - if you see this, Serial is working
+  Serial.println("\n\n==============================================");
+  Serial.println("ESP32 SERIAL OUTPUT ACTIVE");
+  Serial.println("==============================================\n");
   
   // Boot banner (keeps runtime info accurate even if comments drift)
   Serial.printf("Build %s | File %s | Compiled %s %s\r\n", BUILD_TAG, __FILE__, __DATE__, __TIME__);
