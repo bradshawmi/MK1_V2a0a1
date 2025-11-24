@@ -2419,8 +2419,7 @@ server.on("/update", HTTP_POST, [](){
     Preferences prefs;
     prefBeginWrite(prefs);
     prefs.putString(presetKeyFor(idx), blob);
-    activePreset = idx;
-    prefs.putChar(PREF_ACTIVE_PRESET, activePreset);
+    // Don't change activePreset when saving - only when applying
     prefEnd(prefs);
 
     server.send(200,"application/json", blob);

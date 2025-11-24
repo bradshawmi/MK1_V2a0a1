@@ -111,12 +111,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
     
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px">
       <div>
-        <label style="font-weight:600; color:#111;">Access Point SSID</label>
-        <input type="text" id="apSSID" placeholder="ArcReactorMK1" maxlength="32">
+        <label style="font-weight:600; color:#111;">AP SSID</label>
+        <input type="text" id="apSSID" placeholder="ArcReactorMK1" maxlength="32" style="width:100%; box-sizing:border-box;">
       </div>
       <div>
-        <label style="font-weight:600; color:#111;">Access Point Password</label>
-        <input type="text" id="apPassword" placeholder="Minimum 8 characters" maxlength="64">
+        <label style="font-weight:600; color:#111;">AP Password</label>
+        <input type="text" id="apPassword" placeholder="Min 8 chars" maxlength="64" style="width:100%; box-sizing:border-box;">
       </div>
     </div>
     
@@ -530,7 +530,8 @@ function doPresetSave(idx, btn){
     .then(r=>r.json()).then(j=>{
       const face = j.faceColor || payload.zones[0].colorA || '#EEEEEE';
       btn.style.background = face; btn.style.color = (face==='#EEEEEE')?'#111':contrastText(face);
-      presetMeta.active = (j && typeof j.activePreset==="number") ? j.activePreset : idx; setActivePresetButton(presetMeta.active); flashOnce(btn);
+      // Don't change presetMeta.active when saving - only when applying
+      flashOnce(btn);
     });
 }
 function doPresetApply(idx, btn){
