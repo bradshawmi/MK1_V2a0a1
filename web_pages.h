@@ -125,15 +125,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
   </div>
 </details>
 
-<details class="card" open>
+<details class="card">
   <summary class="section-title" style="font-size:20px">
-    <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+    <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:4px;">
       <span>MASTER BRIGHTNESS</span>
       <span class="small" style="color:#000; margin-right:10px;">Batt. <span id="batteryMB">--.--</span> V</span>
     </div>
+    <input type="range" id="master" min="0" max="255" value="128" style="margin-top:4px;">
   </summary>
   <div style="margin-top:10px;">
-    <input type="range" id="master" min="0" max="255" value="128">
     <div class="row" style="margin-top:6px; align-items:center; gap:12px;">
     <label style="display:flex;align-items:center;gap:8px;margin:0; width:140px; flex:0 0 140px">
       <input type="checkbox" id="autoDF">
