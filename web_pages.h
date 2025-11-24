@@ -39,7 +39,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
   #wheel{ touch-action:none; display:block; margin:8px auto; }
   .flex{ display:flex; gap:8px; align-items:center; }
   .grow{ flex:1; }
-  .favbar{ display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
+  .favbar{ display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; justify-content:space-between; }
   .fav{ width:30px; height:30px; border:1px solid #888; border-radius:6px; }
   details summary{ cursor:pointer; list-style:none; font-weight:700; font-size:1.25rem; }
   details summary::-webkit-details-marker{ display:none; }
