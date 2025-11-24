@@ -507,9 +507,9 @@ static unsigned long lastReleaseMs = 0;
 static uint8_t clickCount = 0;
 static const unsigned long BUTTON_HOLD_MS = 1100;
 
-static String favHex[9] = {
+static String favHex[10] = {
   "#FF6A00","#00C8FF","#FFFFFF","#00FFAA","#FF00FF",
-  "#FFA500","#00FF00","#0000FF","#FFFF00"
+  "#FFA500","#00FF00","#0000FF","#FFFF00","#FF0000"
 };
 
 static int8_t activePreset = -1;
@@ -1934,7 +1934,7 @@ static bool cyclePresetNext(){
 static void loadFavorites(){
   Preferences prefs;
   prefBeginRead(prefs);
-  for (uint8_t i=0;i<9;i++){
+  for (uint8_t i=0;i<10;i++){
     String def = favHex[i];
     String got = prefs.getString(favKeyFor(i), def);
     if (got.length()==7 && got[0]=='#') favHex[i]=got;
@@ -2211,7 +2211,7 @@ doc["activePreset"]   = activePreset;
   }
 
   auto favs = doc["favs"].to<JsonArray>();
-  for (int i=0; i<9; i++) favs.add(favHex[i]);
+  for (int i=0; i<10; i++) favs.add(favHex[i]);
 
   auto dbg = doc["debug"].to<JsonArray>();
   for (int i=0;i<DEBUG_LINES;i++) dbg.add(debugLog[i]);
@@ -2359,7 +2359,7 @@ server.on("/update", HTTP_POST, [](){
   server.on("/getFavs", HTTP_GET, [](){
     StaticJsonDocument<256> doc;
     auto arr = doc["favs"].to<JsonArray>();
-    for (int i=0;i<9;i++) arr.add(favHex[i]);
+    for (int i=0;i<10;i++) arr.add(favHex[i]);
     String out; serializeJson(doc, out);
     server.send(200, "application/json", out);
   });

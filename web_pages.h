@@ -39,7 +39,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
   #wheel{ touch-action:none; display:block; margin:8px auto; }
   .flex{ display:flex; gap:8px; align-items:center; }
   .grow{ flex:1; }
-  .favbar{ display:flex; gap:8px; margin-top:6px; flex-wrap:wrap; }
+  .favbar{ display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; justify-content:space-between; }
   .fav{ width:30px; height:30px; border:1px solid #888; border-radius:6px; }
   details summary{ cursor:pointer; list-style:none; font-weight:700; font-size:1.25rem; }
   details summary::-webkit-details-marker{ display:none; }
@@ -236,11 +236,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
 <!-- Color Picker Modal -->
 <div class="modal" id="pickerModal">
   <div class="card2">
-    <div class="row"><b>Pick color</b><span id="preview" style="width:28px;height:28px;border-radius:6px;border:1px solid #aaa;display:inline-block"></span></div>
+    <div class="row" style="align-items:flex-start"><b>Pick color</b><div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:0.9rem">Hex</span><input id="hex" type="text" value="#FFFFFF" maxlength="7" placeholder="#RRGGBB" style="width:80px;height:28px;padding:4px;font-size:0.9rem"></div><span id="preview" style="width:28px;height:28px;border-radius:6px;border:1px solid #aaa;display:inline-block"></span></div></div>
     <canvas id="wheel" width="240" height="240"></canvas>
     <div class="flex"><span>Brightness</span><input class="grow" type="range" id="val" min="0" max="100" value="100"></div>
-    <div class="flex" style="margin-top:8px"><span>Hex</span><input id="hex" type="text" value="#FFFFFF" maxlength="7" placeholder="#RRGGBB"></div>
-    <div class="small" style="margin-top:8px">Favorites</div>
+    <div class="small" style="margin-top:8px; color:#111">Favorites <span style="font-size:12px; font-weight:500; margin-left:8px">(Short-tap→Apply) (Long-press→Save)</span></div>
     <div class="favbar" id="favRow"></div>
     <div class="gridA" style="grid-template-columns:1fr 1fr; margin-top:10px">
       <button id="cancel">Cancel</button>
@@ -318,7 +317,7 @@ function livePicker(){
 }
 
 let modal,canvas,ctx,preview,valSlider,hexInput,currentTarget=null,h=0,s=1,v=1,center={x:120,y:120},radius=110;
-let favs=['#FF6A00','#00C8FF','#FFFFFF','#00FFAA','#FF00FF','#FFA500','#00FF00','#0000FF','#FFFF00'];
+let favs=['#FF6A00','#00C8FF','#FFFFFF','#00FFAA','#FF00FF','#FFA500','#00FF00','#0000FF','#FFFF00','#FF0000'];
 let pickerPrevColor=null, isPickerOpen=false;
 let wheelImg=null;
 
@@ -391,7 +390,7 @@ function pickAt(ev){
 function renderFavRow(){
   const row=document.getElementById('favRow'); if(!row) return;
   row.innerHTML='';
-  for(let i=0;i<9;i++){
+  for(let i=0;i<10;i++){
     const b=document.createElement('button');
     b.className='fav'; b.style.background=favs[i];
     let pressTimer=null,long=false,vibrateTimer=null;
@@ -455,7 +454,7 @@ function hydrateEffects(j){
   document.getElementById('simNote').style.display = (document.getElementById('simVbatEn').checked?'block':'none');
     if ('wifiIdleAutoOff' in j) { try{ document.getElementById('wifiIdleAutoOff').checked = !!j.wifiIdleAutoOff; updateWifiIdleLabel(); }catch(e){} }
 setActivePresetButton(j.activePreset);
-  if (Array.isArray(j.favs) && j.favs.length === 9) { favs = j.favs.slice(0,9); renderFavRow(); }
+  if (Array.isArray(j.favs) && j.favs.length === 10) { favs = j.favs.slice(0,10); renderFavRow(); }
 }
 
 function attachPicker(){
