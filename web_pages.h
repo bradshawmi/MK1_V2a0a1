@@ -126,7 +126,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
 </details>
 
 <details class="card" open>
-  <summary class="section-title">
+  <summary class="section-title" style="font-size:20px">
     <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
       <span>MASTER BRIGHTNESS</span>
       <span class="small" style="color:#000; margin-right:10px;">Batt. <span id="batteryMB">--.--</span> V</span>
