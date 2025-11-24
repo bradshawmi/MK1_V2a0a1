@@ -729,7 +729,10 @@ setInterval(()=>{
   fetch('/status').then(r=>r.json()).then(j=>{
     document.getElementById('batteryMB').innerText=(j.battery||0).toFixed(2);
     document.getElementById('messages').innerText=j.message||'';
-    if (typeof j.activePreset === 'number') setActivePresetButton(j.activePreset);
+    if (typeof j.activePreset === 'number') {
+      presetMeta.active = j.activePreset;
+      setActivePresetButton(j.activePreset);
+    }
     if (typeof updateWiFiStatusFromJSON === 'function') updateWiFiStatusFromJSON(j);
   });
 }, 1000);
@@ -750,6 +753,7 @@ setInterval(()=>{
         try {
           if (typeof hydrateEffects === 'function') hydrateEffects(j);
           if (typeof j.activePreset === 'number' && typeof setActivePresetButton === 'function') {
+            presetMeta.active = j.activePreset;
             setActivePresetButton(j.activePreset);
           }
           var el = document.getElementById('buildTag');
