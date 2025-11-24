@@ -101,37 +101,67 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
   <span id="dirty" class="dot"></span>
 </div>
 
-<div class="card">
-  <div class="row" style="justify-content:space-between; align-items:center;"><label class="section-title" style="font-size:20px">MASTER BRIGHTNESS</label><span class="small" style="color:#000">Batt. <span id="batteryMB">--.--</span> V</span>
-</div>
-  <input type="range" id="master" min="0" max="255" value="128">
-  <div class="row" style="margin-top:6px; align-items:center; gap:12px;">
-  <label style="display:flex;align-items:center;gap:8px;margin:0; width:140px; flex:0 0 140px">
-    <input type="checkbox" id="autoDF">
-    <span>DyingFlicker trigger volts: <span id="dfThreshLabel" style="display:none"></span></span>
-  </label>
-  <input type="text" id="dfThreshText" value="3.60" style="width:40px; height:24px; text-align:center;">
-  <input type="range" id="dfThresh" min="3.55" max="3.70" step="0.01" value="3.60" style="flex:1;">
-</div>
-  <div class="row" style="align-items:center; gap:12px;">
-  <label style="display:flex;align-items:center;gap:8px;margin:0; width:140px; flex:0 0 140px">
-    <input type="checkbox" id="simVbatEn">
-    <span>Simulate lowV</span>
-  </label>
-  <input type="text" id="simVbatText" value="3.60" style="width:40px; height:24px; text-align:center;">
-  <input type="range" id="simVbat" min="3.50" max="3.80" step="0.01" value="3.60" style="flex:1;">
-</div>
-  <div class="row" style="align-items:center; gap:12px;">
-  <label style="display:flex;align-items:center;gap:8px;margin:0; width:140px; flex:0 0 140px">
-    <input type="checkbox" id="wifiIdleAutoOff">
-    <span id="wifiIdleLabel">Wi‑Fi idle timer ON</span>
-  </label>
-</div>
-  <div class="cardNote" id="simNote" style="display:none"></div>
-  <div class="cardNote" id="mbNote">
-    PUSHBUTTON: (Short-tap→Restore Wi-Fi)<br>(Long-press→Sleep/Wake) (Double-tap→Next preset).
+<details class="card">
+  <summary class="section-title">Wi-Fi</summary>
+  <div style="margin-top:10px">
+    <div class="small" style="margin-bottom:10px; color:#000">
+      <strong>Status:</strong> <span id="wifiStatus">AP Mode</span><br>
+      <strong>IP Address:</strong> <span id="wifiIP">192.168.4.1</span>
+    </div>
+    
+    <label style="font-weight:600; color:#111; margin-top:10px">Access Point SSID</label>
+    <input type="text" id="apSSID" placeholder="ArcReactorMK1" maxlength="32">
+    
+    <label style="font-weight:600; color:#111; margin-top:10px">Access Point Password</label>
+    <input type="text" id="apPassword" placeholder="Minimum 8 characters" maxlength="64">
+    
+    <div style="margin-top:10px;">
+      <button id="wifiSaveBtn" style="width:100%; background:#4CAF50; color:#fff; padding:10px 12px; font-size:1rem; border:0; border-radius:6px; cursor:pointer;">Save WiFi Settings</button>
+    </div>
+    
+    <div class="cardNote" style="margin-top:10px">
+      <strong>Captive Portal:</strong> When connecting to the Access Point, your browser will automatically open this configuration page.
+    </div>
   </div>
-</div>
+</details>
+
+<details class="card">
+  <summary class="section-title" style="font-size:20px">
+    <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:4px;">
+      <span>MASTER BRIGHTNESS</span>
+      <span class="small" style="color:#000; margin-right:10px;">Batt. <span id="batteryMB">--.--</span> V</span>
+    </div>
+    <input type="range" id="master" min="0" max="255" value="128" style="margin-top:4px;">
+  </summary>
+  <div style="margin-top:10px;">
+    <div class="row" style="margin-top:6px; align-items:center; gap:12px;">
+    <label style="display:flex;align-items:center;gap:8px;margin:0; width:140px; flex:0 0 140px">
+      <input type="checkbox" id="autoDF">
+      <span>DyingFlicker trigger volts: <span id="dfThreshLabel" style="display:none"></span></span>
+    </label>
+    <input type="text" id="dfThreshText" value="3.60" style="width:40px; height:24px; text-align:center;">
+    <input type="range" id="dfThresh" min="3.55" max="3.70" step="0.01" value="3.60" style="flex:1;">
+  </div>
+    <div class="row" style="align-items:center; gap:12px;">
+    <label style="display:flex;align-items:center;gap:8px;margin:0; width:140px; flex:0 0 140px">
+      <input type="checkbox" id="simVbatEn">
+      <span>Simulate lowV</span>
+    </label>
+    <input type="text" id="simVbatText" value="3.60" style="width:40px; height:24px; text-align:center;">
+    <input type="range" id="simVbat" min="3.50" max="3.80" step="0.01" value="3.60" style="flex:1;">
+  </div>
+    <div class="row" style="align-items:center; gap:12px;">
+    <label style="display:flex;align-items:center;gap:8px;margin:0; width:140px; flex:0 0 140px">
+      <input type="checkbox" id="wifiIdleAutoOff">
+      <span id="wifiIdleLabel">Wi‑Fi idle timer ON</span>
+    </label>
+  </div>
+    <div class="cardNote" id="simNote" style="display:none"></div>
+    <div class="cardNote" id="mbNote">
+      PUSHBUTTON: (Short-tap→Restore Wi-Fi)<br>(Long-press→Sleep/Wake) (Double-tap→Next preset).
+    </div>
+  </div>
+</details>
 
 <details class="card">
   <summary class="section-title">PLASMA HALO <span class="subhead">(Outer Ring)</span></summary>
@@ -568,6 +598,63 @@ function updateWifiIdleLabel(){
     if (cb){ cb.addEventListener('change', ()=>{ updateWifiIdleLabel(); }); }
   }catch(e){}
 })();
+
+// WiFi configuration handlers
+(function(){
+  function updateWiFiStatus(j) {
+    try {
+      const statusEl = document.getElementById('wifiStatus');
+      const ipEl = document.getElementById('wifiIP');
+      if (!statusEl || !ipEl) return;
+      
+      // Always AP mode now
+      statusEl.textContent = 'Access Point mode: ' + (j.apSSID || 'ArcReactorMK1');
+      statusEl.style.color = '#2196F3';
+      ipEl.textContent = j.wifiIP || '192.168.4.1';
+      
+      // Populate AP fields and persist password
+      if (j.apSSID !== undefined) {
+        const apSsidEl = document.getElementById('apSSID');
+        if (apSsidEl && !apSsidEl.value) apSsidEl.value = j.apSSID;
+      }
+      if (j.apPassword !== undefined) {
+        const apPassEl = document.getElementById('apPassword');
+        if (apPassEl) apPassEl.value = j.apPassword; // Always update to persist password
+      }
+    } catch(e) {}
+  }
+  
+  const saveBtn = document.getElementById('wifiSaveBtn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', ()=>{
+      const apSsid = document.getElementById('apSSID').value;
+      const apPass = document.getElementById('apPassword').value;
+      
+      if (apPass && apPass.length > 0 && apPass.length < 8) {
+        alert('AP password must be at least 8 characters or empty');
+        return;
+      }
+      
+      const data = {
+        apSSID: apSsid,
+        apPassword: apPass
+      };
+      
+      fetch('/wifiSave', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+        .then(r=>r.text())
+        .then(msg=>{
+          alert(msg);
+        })
+        .catch(err=>{
+          alert('Error saving WiFi settings: ' + err);
+        });
+    });
+  }
+  
+  // Update WiFi status on initial load and periodic updates
+  window.updateWiFiStatusFromJSON = updateWiFiStatus;
+})();
+
 function safeInit(){ try{ attachPicker(); bindSwatches(); fetchPresets(); }catch(e){} }
 document.addEventListener('DOMContentLoaded', safeInit);
 
@@ -580,6 +667,7 @@ fetch('/status').then(r=>r.json()).then(j=>{
   document.getElementById('batteryMB').innerText=(j.battery||0).toFixed(2);
   document.getElementById('messages').innerText=j.message||'';
   hydrateEffects(j);
+  if (typeof updateWiFiStatusFromJSON === 'function') updateWiFiStatusFromJSON(j);
 });
 try{ if(typeof j!=='undefined' && j && typeof j.activePreset==='number'){ lastActivePreset=j.activePreset; } }catch(e){}
 setInterval(()=>{
@@ -587,6 +675,7 @@ setInterval(()=>{
     document.getElementById('batteryMB').innerText=(j.battery||0).toFixed(2);
     document.getElementById('messages').innerText=j.message||'';
     if (typeof j.activePreset === 'number') setActivePresetButton(j.activePreset);
+    if (typeof updateWiFiStatusFromJSON === 'function') updateWiFiStatusFromJSON(j);
   });
 }, 1000);
 </script>

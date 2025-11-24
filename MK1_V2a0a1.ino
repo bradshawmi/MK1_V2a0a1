@@ -1,4 +1,3 @@
-// NOTE: INDEX_HTML has been extracted to web_pages.h (see branch refactor/extract-webpages)
 
 #define DEBUG_LOGS 0
 #include <stdint.h>
@@ -20,7 +19,7 @@ static inline void auroraUpdate(uint8_t z, uint16_t speed);
 static inline CRGB auroraSample(uint8_t z, uint16_t iGlobal, uint8_t intensity);
 static inline uint8_t auroraHolesMask(uint8_t z, uint16_t iGlobal);
 
-static constexpr char BUILD_TAG[] = "v2a0c0";
+static constexpr char BUILD_TAG[] = "v2a0c5";
 
 enum DFPhase : uint8_t;
 struct DFState;
@@ -40,7 +39,7 @@ struct AuroraState {
   uint32_t lastMs;
 };
 
-// Enhanced Plasma Effect Parameters (v2a0b3+)
+// Enhanced Plasma Effect Parameters
 // Implements dynamic wave sources with orbital motion and multi-octave noise
 // for realistic electromagnetic plasma appearance inspired by FastLED Plasma Waves
 struct PlasmaParams {
@@ -66,6 +65,7 @@ static AuroraState gAurora[3] = {0};
 #include <pgmspace.h>
 #include <WiFi.h>
 #include <WebServer.h>
+#include <DNSServer.h>
 #include <Preferences.h>
 #include <FastLED.h>
 #include <ArduinoJson.h>
@@ -382,6 +382,10 @@ static inline uint16_t clampSpeed(uint16_t v){ return constrain(v, 10, 1000); }
 static const char* AP_SSID = "ArcReactorMK1";
 static const char* AP_PASS = "arcreactor";
 
+// WiFi credentials (loaded from preferences)
+static String apSSID = "ArcReactorMK1";
+static String apPassword = "arcreactor";
+
 static const float FLICKER_START_V = 3.60f;
 static const float FULL_OFF_V      = 3.51f;
 static const unsigned long AUTO_SLEEP_GRACE_MS = 10UL * 60UL * 1000UL;
@@ -445,6 +449,8 @@ static uint8_t osGlow[NUM_LEDS] = {0};
 static RingCoord gRingLUT[NUM_LEDS];
 static bool      gRingLUTInited = false;
 static WebServer server(80);
+static DNSServer dnsServer;
+static const byte DNS_PORT = 53;
 static Preferences prefs;
 
 struct Zone {
@@ -1935,6 +1941,23 @@ static void loadFavorites(){
   }
   prefEnd(prefs);
 }
+static void loadWiFiCredentials(){
+  apSSID = prefReadString(PREF_AP_SSID, "ArcReactorMK1");
+  apPassword = prefReadString(PREF_AP_PASS, "arcreactor");
+  addDebugf("AP creds loaded: SSID=%s", apSSID.c_str());
+}
+
+
+static void startAPMode() {
+  addDebugf("Starting AP mode: %s", apSSID.c_str());
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(apSSID.c_str(), apPassword.c_str());
+  addDebugf("AP started: %s IP: %s", apSSID.c_str(), WiFi.softAPIP().toString().c_str());
+  
+  // Start DNS server for captive portal
+  dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
+  addDebug("DNS server started for captive portal");
+}
 static void saveFavorite(uint8_t idx, const String &hex){
   if (idx>8) return;
   favHex[idx]=hex;
@@ -2055,15 +2078,16 @@ static const unsigned long IDLE_OFF_MS  = 5UL * 60UL * 1000UL;
 static inline void recordActivity(){ lastActivityMs = millis(); }
 static void wifiEnable(){
   if (wifiOn) return;
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP(AP_SSID, AP_PASS);
-  addDebugf("Wi-Fi ON  AP %s %s", AP_SSID, WiFi.softAPIP().toString().c_str());
+  
+  // Start AP mode
+  startAPMode();
   wifiOn = true;
   recordActivity();
 }
 static void wifiDisable(){
   if (!wifiOn) return;
   WiFi.softAPdisconnect(true);
+  dnsServer.stop();  // Stop DNS server when AP is disabled
   WiFi.mode(WIFI_OFF);
   addDebug("Wi-Fi OFF");
   wifiOn = false;
@@ -2142,6 +2166,11 @@ static void sendStatusJSON(){
   doc["simVbat"]        = simVbat;
     doc["wifiIdleAutoOff"] = wifiIdleAutoOff;
 doc["activePreset"]   = activePreset;
+  
+  // WiFi status information (AP mode only)
+  doc["wifiIP"] = WiFi.softAPIP().toString();
+  doc["apSSID"] = apSSID;
+  doc["apPassword"] = apPassword;  // Include password for persistence in UI
 
   const char* phaseName = nullptr;
   for (int zi=0; zi<3; ++zi){
@@ -2266,9 +2295,11 @@ delay(100);
     if ((millis() - t0) < BUTTON_HOLD_MS) enterDeepSleepNow("shortWake");
   }
 
-  // AP up
-  WiFi.softAP(AP_SSID, AP_PASS);
-  addDebugf("AP: %s IP %s", AP_SSID, WiFi.softAPIP().toString().c_str());
+  // Load WiFi credentials from preferences
+  loadWiFiCredentials();
+  
+  // Start in AP mode only
+  startAPMode();
   recordActivity();
 
   loadPrefs();
@@ -2422,6 +2453,35 @@ server.on("/status",  HTTP_GET, [](){
   const bool batteryReady = (batt.count >= BAT_SAMPLES_PER_WINDOW); sendStatusJSON(); });
   server.on("/battery", HTTP_GET, [](){ server.send(200,"text/plain",String(batteryVoltage,3)); });
 
+  // WiFi configuration endpoints
+  server.on("/wifiSave", HTTP_POST, [](){
+    if (!server.hasArg("plain")) { server.send(400,"text/plain","Missing body"); return; }
+    recordActivity();
+    StaticJsonDocument<512> doc;
+    DeserializationError err = deserializeJson(doc, server.arg("plain"));
+    if (err){ server.send(400,"text/plain","Bad JSON"); return; }
+    
+    if (doc.containsKey("apSSID")) {
+      apSSID = doc["apSSID"].as<String>();
+      apSSID.trim();
+      if (apSSID.length() == 0) apSSID = "ArcReactorMK1";
+      prefWriteString(PREF_AP_SSID, apSSID);
+    }
+    if (doc.containsKey("apPassword")) {
+      apPassword = doc["apPassword"].as<String>();
+      apPassword.trim();
+      if (apPassword.length() > 0 && apPassword.length() < 8) {
+        server.send(400,"text/plain","AP password must be at least 8 characters");
+        return;
+      }
+      if (apPassword.length() == 0) apPassword = "arcreactor";
+      prefWriteString(PREF_AP_PASS, apPassword);
+    }
+    
+    addDebug("WiFi config saved");
+    server.send(200,"text/plain","WiFi settings saved. Restart to apply.");
+  });
+  
   
   // --- Debug: Read-only preset dump (v4c7b3) ---
   server.on("/presetDump", HTTP_GET, [](){
@@ -2436,6 +2496,14 @@ server.on("/status",  HTTP_GET, [](){
   server.on("/", HTTP_GET, [](){
     server.send_P(200, "text/html; charset=utf-8", INDEX_HTML);
   });
+  
+  // Captive portal: redirect all unknown requests to main page
+  server.onNotFound([](){
+    // Always in AP mode, redirect to captive portal
+    server.sendHeader("Location", "http://" + WiFi.softAPIP().toString());
+    server.send(302, "text/plain", "");
+  });
+  
 server.begin();
   addDebug("HTTP server started");
 
@@ -2450,6 +2518,12 @@ server.begin();
 static bool wifiOnCached = true; // mirror (avoid linker surprises)
 void loop(){
   server.handleClient();
+  
+  // Process DNS requests for captive portal (always in AP mode)
+  if (wifiOn) {
+    dnsServer.processNextRequest();
+  }
+  
   sampleBattery();
 
   // Wi-Fi inactivity handling
