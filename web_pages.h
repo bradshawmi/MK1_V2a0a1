@@ -236,7 +236,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
 <!-- Color Picker Modal -->
 <div class="modal" id="pickerModal">
   <div class="card2">
-    <div class="row" style="align-items:flex-start"><b>Pick color</b><div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:0.9rem">Hex</span><input id="hex" type="text" value="#FFFFFF" maxlength="7" placeholder="#RRGGBB" style="width:80px;height:28px;padding:4px;font-size:0.9rem"></div><span id="preview" style="width:80px;height:28px;border-radius:6px;border:1px solid #aaa;display:inline-block"></span></div></div>
+    <div class="row" style="align-items:flex-start"><b>Pick color</b><div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:0.9rem">Hex</span><input id="hex" type="text" value="#FFFFFF" maxlength="7" placeholder="#RRGGBB" style="width:80px;height:28px;padding:4px;font-size:0.9rem"></div><span id="preview" style="width:28px;height:28px;border-radius:6px;border:1px solid #aaa;display:inline-block"></span></div></div>
     <canvas id="wheel" width="240" height="240"></canvas>
     <div class="flex"><span>Brightness</span><input class="grow" type="range" id="val" min="0" max="100" value="100"></div>
     <div class="small" style="margin-top:8px">Favorites <span class="subhead">(Short-tap→Apply) (Long-press→Save)</span></div>
