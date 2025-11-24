@@ -1,4 +1,3 @@
-// NOTE: INDEX_HTML has been extracted to web_pages.h (see branch refactor/extract-webpages)
 
 #define DEBUG_LOGS 0
 #include <stdint.h>
@@ -20,7 +19,7 @@ static inline void auroraUpdate(uint8_t z, uint16_t speed);
 static inline CRGB auroraSample(uint8_t z, uint16_t iGlobal, uint8_t intensity);
 static inline uint8_t auroraHolesMask(uint8_t z, uint16_t iGlobal);
 
-static constexpr char BUILD_TAG[] = "v2a0c4";
+static constexpr char BUILD_TAG[] = "v2a0c5";
 
 enum DFPhase : uint8_t;
 struct DFState;
@@ -40,7 +39,7 @@ struct AuroraState {
   uint32_t lastMs;
 };
 
-// Enhanced Plasma Effect Parameters (v2a0b3+)
+// Enhanced Plasma Effect Parameters
 // Implements dynamic wave sources with orbital motion and multi-octave noise
 // for realistic electromagnetic plasma appearance inspired by FastLED Plasma Waves
 struct PlasmaParams {
