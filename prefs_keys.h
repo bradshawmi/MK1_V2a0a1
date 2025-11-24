@@ -13,8 +13,6 @@ static constexpr char PREF_AUTO_DF[] = "autoDF";
 static constexpr char PREF_MASTER[] = "master";
 static constexpr char PREF_ACTIVE_PRESET[] = "activePreset";
 static constexpr char PREF_WIFI_IDLE[] = "wifiIdleAutoOff";
-static constexpr char PREF_WIFI_SSID[] = "wifiSSID";        // Home WiFi SSID
-static constexpr char PREF_WIFI_PASS[] = "wifiPass";        // Home WiFi password
 static constexpr char PREF_AP_SSID[] = "apSSID";            // Access Point SSID
 static constexpr char PREF_AP_PASS[] = "apPass";            // Access Point password
 

@@ -2169,8 +2169,6 @@ static void sendStatusJSON(){
 doc["activePreset"]   = activePreset;
   
   // WiFi status information (AP mode only)
-  doc["wifiStationMode"] = false;
-  doc["wifiConnected"] = false;
   doc["wifiIP"] = WiFi.softAPIP().toString();
   doc["apSSID"] = apSSID;
   doc["apPassword"] = apPassword;  // Include password for persistence in UI
