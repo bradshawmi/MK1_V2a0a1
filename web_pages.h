@@ -39,7 +39,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
   #wheel{ touch-action:none; display:block; margin:8px auto; }
   .flex{ display:flex; gap:8px; align-items:center; }
   .grow{ flex:1; }
-  .favbar{ display:flex; gap:8px; margin-top:6px; flex-wrap:wrap; }
+  .favbar{ display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
   .fav{ width:30px; height:30px; border:1px solid #888; border-radius:6px; }
   details summary{ cursor:pointer; list-style:none; font-weight:700; font-size:1.25rem; }
   details summary::-webkit-details-marker{ display:none; }
@@ -317,7 +317,7 @@ function livePicker(){
 }
 
 let modal,canvas,ctx,preview,valSlider,hexInput,currentTarget=null,h=0,s=1,v=1,center={x:120,y:120},radius=110;
-let favs=['#FF6A00','#00C8FF','#FFFFFF','#00FFAA','#FF00FF','#FFA500','#00FF00','#0000FF','#FFFF00'];
+let favs=['#FF6A00','#00C8FF','#FFFFFF','#00FFAA','#FF00FF','#FFA500','#00FF00','#0000FF','#FFFF00','#FF0000'];
 let pickerPrevColor=null, isPickerOpen=false;
 let wheelImg=null;
 
@@ -390,7 +390,7 @@ function pickAt(ev){
 function renderFavRow(){
   const row=document.getElementById('favRow'); if(!row) return;
   row.innerHTML='';
-  for(let i=0;i<9;i++){
+  for(let i=0;i<10;i++){
     const b=document.createElement('button');
     b.className='fav'; b.style.background=favs[i];
     let pressTimer=null,long=false,vibrateTimer=null;
@@ -454,7 +454,7 @@ function hydrateEffects(j){
   document.getElementById('simNote').style.display = (document.getElementById('simVbatEn').checked?'block':'none');
     if ('wifiIdleAutoOff' in j) { try{ document.getElementById('wifiIdleAutoOff').checked = !!j.wifiIdleAutoOff; updateWifiIdleLabel(); }catch(e){} }
 setActivePresetButton(j.activePreset);
-  if (Array.isArray(j.favs) && j.favs.length === 9) { favs = j.favs.slice(0,9); renderFavRow(); }
+  if (Array.isArray(j.favs) && j.favs.length === 10) { favs = j.favs.slice(0,10); renderFavRow(); }
 }
 
 function attachPicker(){
