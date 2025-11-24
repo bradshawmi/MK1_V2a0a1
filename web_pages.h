@@ -138,7 +138,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
   <div style="margin-top:10px">
     <div class="small" style="margin-bottom:10px; color:#000">
       <strong>Status:</strong> <span id="wifiStatus">Loading...</span><br>
-      <strong>IP Address:</strong> <span id="wifiIP">-</span>
+      <strong>IP Address:</strong> <span id="wifiIP">-</span><br>
+      <strong id="hostnameLabel" style="display:none">Easy Access:</strong> <a id="wifiHostname" href="#" target="_blank" style="display:none; color:#0a84ff; font-weight:600">-</a>
     </div>
     
     <div style="display:flex; gap:8px; align-items:flex-end">
@@ -167,6 +168,10 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
     </div>
     
     <div class="cardNote" style="margin-top:10px">
+      <strong>Easy Access:</strong><br>
+      • <strong>AP Mode:</strong> Browser opens automatically at http://192.168.4.1<br>
+      • <strong>Home WiFi:</strong> Access at <strong>http://arcreactor.local</strong> (works on most devices)<br>
+      <br>
       On boot, the device attempts to connect to home WiFi for 1 minute. If unsuccessful, it creates an Access Point with the configured SSID/password. Changes to AP settings require a restart.
     </div>
   </div>
@@ -616,6 +621,8 @@ function updateWifiIdleLabel(){
     try {
       const statusEl = document.getElementById('wifiStatus');
       const ipEl = document.getElementById('wifiIP');
+      const hostnameEl = document.getElementById('wifiHostname');
+      const hostnameLabelEl = document.getElementById('hostnameLabel');
       if (!statusEl || !ipEl) return;
       
       if (j.wifiStationMode) {
@@ -632,6 +639,21 @@ function updateWifiIdleLabel(){
       }
       
       ipEl.textContent = j.wifiIP || '-';
+      
+      // Show hostname if available (station mode)
+      if (j.wifiHostname && j.wifiConnected) {
+        if (hostnameEl && hostnameLabelEl) {
+          hostnameEl.href = 'http://' + j.wifiHostname;
+          hostnameEl.textContent = j.wifiHostname;
+          hostnameEl.style.display = 'inline';
+          hostnameLabelEl.style.display = 'inline';
+        }
+      } else {
+        if (hostnameEl && hostnameLabelEl) {
+          hostnameEl.style.display = 'none';
+          hostnameLabelEl.style.display = 'none';
+        }
+      }
       
       // Populate WiFi fields
       if (j.wifiSSID !== undefined) {

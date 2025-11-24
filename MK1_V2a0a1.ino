@@ -67,6 +67,7 @@ static AuroraState gAurora[3] = {0};
 #include <WiFi.h>
 #include <WebServer.h>
 #include <DNSServer.h>
+#include <ESPmDNS.h>
 #include <Preferences.h>
 #include <FastLED.h>
 #include <ArduinoJson.h>
@@ -1982,6 +1983,15 @@ static bool attemptWiFiConnection(const String& ssid, const String& password, un
   if (WiFi.status() == WL_CONNECTED) {
     addDebugf("WiFi connected! IP: %s RSSI: %d dBm", WiFi.localIP().toString().c_str(), WiFi.RSSI());
     wifiStationMode = true;
+    
+    // Start mDNS for easy access via hostname
+    if (MDNS.begin("arcreactor")) {
+      MDNS.addService("http", "tcp", 80);
+      addDebug("mDNS started: http://arcreactor.local");
+    } else {
+      addDebug("mDNS failed to start");
+    }
+    
     return true;
   } else {
     wl_status_t status = WiFi.status();
@@ -2228,6 +2238,7 @@ doc["activePreset"]   = activePreset;
   doc["wifiConnected"] = (wifiStationMode && WiFi.status() == WL_CONNECTED);
   if (wifiStationMode && WiFi.status() == WL_CONNECTED) {
     doc["wifiIP"] = WiFi.localIP().toString();
+    doc["wifiHostname"] = "arcreactor.local";
   } else if (!wifiStationMode) {
     doc["wifiIP"] = WiFi.softAPIP().toString();
   }
