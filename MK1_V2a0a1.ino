@@ -1985,9 +1985,9 @@ static bool attemptWiFiConnection(const String& ssid, const String& password, un
     wifiStationMode = true;
     
     // Start mDNS for easy access via hostname
-    if (MDNS.begin("arcreactor")) {
+    if (MDNS.begin("arc")) {
       MDNS.addService("http", "tcp", 80);
-      addDebug("mDNS started: http://arcreactor.local");
+      addDebug("mDNS started: http://arc.local");
     } else {
       addDebug("mDNS failed to start");
     }
@@ -2238,7 +2238,7 @@ doc["activePreset"]   = activePreset;
   doc["wifiConnected"] = (wifiStationMode && WiFi.status() == WL_CONNECTED);
   if (wifiStationMode && WiFi.status() == WL_CONNECTED) {
     doc["wifiIP"] = WiFi.localIP().toString();
-    doc["wifiHostname"] = "arcreactor.local";
+    doc["wifiHostname"] = "arc.local";
   } else if (!wifiStationMode) {
     doc["wifiIP"] = WiFi.softAPIP().toString();
   }

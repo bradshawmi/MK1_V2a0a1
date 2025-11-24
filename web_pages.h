@@ -145,13 +145,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
     <div style="display:flex; gap:8px; align-items:flex-end">
       <div style="flex:1">
         <label style="font-weight:600; color:#111; margin-top:10px">Home WiFi SSID</label>
-        <select id="wifiSSIDDropdown" style="width:100%; height:38px; font-size:1rem; padding:4px">
+        <select id="wifiSSID" style="width:100%; height:38px; font-size:1rem; padding:4px">
           <option value="">-- Select Network --</option>
         </select>
       </div>
       <button id="scanNetworksBtn" style="padding:10px 12px; height:38px; background:#9C27B0; color:#fff; border:0; border-radius:6px; cursor:pointer; white-space:nowrap">Scan Networks</button>
     </div>
-    <input type="text" id="wifiSSID" placeholder="Or enter WiFi network name manually" maxlength="32" style="margin-top:8px">
     
     <label style="font-weight:600; color:#111; margin-top:10px">Home WiFi Password</label>
     <input type="text" id="wifiPassword" placeholder="Enter WiFi password" maxlength="64">
@@ -170,7 +169,9 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
     <div class="cardNote" style="margin-top:10px">
       <strong>Easy Access:</strong><br>
       • <strong>AP Mode:</strong> Browser opens automatically at http://192.168.4.1<br>
-      • <strong>Home WiFi:</strong> Access at <strong>http://arcreactor.local</strong> (works on most devices)<br>
+      • <strong>Home WiFi:</strong> Access at <strong>http://arc.local</strong> or use IP address shown above<br>
+      <br>
+      <small><em>Note: Some Android browsers may not support .local addresses. If http://arc.local doesn't work, use the IP address instead.</em></small><br>
       <br>
       On boot, the device attempts to connect to home WiFi for 1 minute. If unsuccessful, it creates an Access Point with the configured SSID/password. Changes to AP settings require a restart.
     </div>
@@ -657,8 +658,26 @@ function updateWifiIdleLabel(){
       
       // Populate WiFi fields
       if (j.wifiSSID !== undefined) {
-        const ssidEl = document.getElementById('wifiSSID');
-        if (ssidEl && !ssidEl.value) ssidEl.value = j.wifiSSID;
+        const dropdown = document.getElementById('wifiSSID');
+        if (dropdown) {
+          // Check if current SSID is already in dropdown
+          let found = false;
+          for (let i = 0; i < dropdown.options.length; i++) {
+            if (dropdown.options[i].value === j.wifiSSID) {
+              dropdown.selectedIndex = i;
+              found = true;
+              break;
+            }
+          }
+          // If not found, add it as an option and select it
+          if (!found && j.wifiSSID) {
+            const opt = document.createElement('option');
+            opt.value = j.wifiSSID;
+            opt.textContent = j.wifiSSID + ' (connected)';
+            opt.selected = true;
+            dropdown.insertBefore(opt, dropdown.options[1]); // Insert after "-- Select Network --"
+          }
+        }
       }
       if (j.apSSID !== undefined) {
         const apSsidEl = document.getElementById('apSSID');
@@ -669,32 +688,50 @@ function updateWifiIdleLabel(){
   
   // Network scanning functionality
   const scanBtn = document.getElementById('scanNetworksBtn');
-  const dropdown = document.getElementById('wifiSSIDDropdown');
-  const ssidInput = document.getElementById('wifiSSID');
+  const dropdown = document.getElementById('wifiSSID');
   
-  if (scanBtn && dropdown && ssidInput) {
+  if (scanBtn && dropdown) {
     scanBtn.addEventListener('click', ()=>{
       scanBtn.disabled = true;
       scanBtn.textContent = 'Scanning...';
+      
+      // Save current selection
+      const currentValue = dropdown.value;
       
       fetch('/wifiScan')
         .then(r=>r.json())
         .then(data=>{
           dropdown.innerHTML = '<option value="">-- Select Network --</option>';
           
+          // If there was a current value, add it first
+          if (currentValue) {
+            const opt = document.createElement('option');
+            opt.value = currentValue;
+            opt.textContent = currentValue + ' (current)';
+            dropdown.appendChild(opt);
+          }
+          
           if (data.networks && data.networks.length > 0) {
             data.networks.forEach(net=>{
-              const opt = document.createElement('option');
-              opt.value = net.ssid;
-              const lockIcon = net.secure ? '🔒 ' : '';
-              opt.textContent = `${lockIcon}${net.ssid} (${net.rssi} dBm)`;
-              dropdown.appendChild(opt);
+              // Don't add duplicate of current network
+              if (net.ssid !== currentValue) {
+                const opt = document.createElement('option');
+                opt.value = net.ssid;
+                const lockIcon = net.secure ? '🔒 ' : '';
+                opt.textContent = `${lockIcon}${net.ssid} (${net.rssi} dBm)`;
+                dropdown.appendChild(opt);
+              }
             });
-          } else {
+          } else if (!currentValue) {
             const opt = document.createElement('option');
             opt.value = '';
             opt.textContent = '-- No networks found --';
             dropdown.appendChild(opt);
+          }
+          
+          // Restore selection
+          if (currentValue) {
+            dropdown.value = currentValue;
           }
           
           scanBtn.disabled = false;
@@ -705,12 +742,6 @@ function updateWifiIdleLabel(){
           scanBtn.disabled = false;
           scanBtn.textContent = 'Scan Networks';
         });
-    });
-    
-    dropdown.addEventListener('change', ()=>{
-      if (dropdown.value) {
-        ssidInput.value = dropdown.value;
-      }
     });
   }
   
