@@ -530,7 +530,8 @@ function doPresetSave(idx, btn){
     .then(r=>r.json()).then(j=>{
       const face = j.faceColor || payload.zones[0].colorA || '#EEEEEE';
       btn.style.background = face; btn.style.color = (face==='#EEEEEE')?'#111':contrastText(face);
-      // Don't change presetMeta.active when saving - only when applying
+      presetMeta.active = idx;
+      setActivePresetButton(idx);
       flashOnce(btn);
     });
 }
