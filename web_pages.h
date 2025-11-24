@@ -43,7 +43,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
   .fav{ width:30px; height:30px; border:1px solid #888; border-radius:6px; }
   details summary{ cursor:pointer; list-style:none; font-weight:700; font-size:1.25rem; }
   details summary::-webkit-details-marker{ display:none; }
-  .presetsGrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .presetsGrid{ display:grid; grid-template-columns:repeat(5,1fr); gap:10px; }
   .presetBtn{ height:44px; border:2px solid #999; border-radius:8px; background:#fff; color:#111; font-weight:700; }
   .presetActive{ border-color:#00C8FF !important; box-shadow:0 0 0 2px rgba(0,200,255,0.25); }
   @keyframes flashBorder { 0%{box-shadow:0 0 0 0 rgba(0,0,0,0)} 30%{box-shadow:0 0 0 3px rgba(10,132,255,.8)} 100%{box-shadow:0 0 0 0 rgba(0,0,0,0)} }
@@ -109,18 +109,19 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
       <strong>IP Address:</strong> <span id="wifiIP">192.168.4.1</span>
     </div>
     
-    <label style="font-weight:600; color:#111; margin-top:10px">Access Point SSID</label>
-    <input type="text" id="apSSID" placeholder="ArcReactorMK1" maxlength="32">
-    
-    <label style="font-weight:600; color:#111; margin-top:10px">Access Point Password</label>
-    <input type="text" id="apPassword" placeholder="Minimum 8 characters" maxlength="64">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px">
+      <div>
+        <label style="font-weight:600; color:#111;">Access Point SSID</label>
+        <input type="text" id="apSSID" placeholder="ArcReactorMK1" maxlength="32">
+      </div>
+      <div>
+        <label style="font-weight:600; color:#111;">Access Point Password</label>
+        <input type="text" id="apPassword" placeholder="Minimum 8 characters" maxlength="64">
+      </div>
+    </div>
     
     <div style="margin-top:10px;">
       <button id="wifiSaveBtn" style="width:100%; background:#4CAF50; color:#fff; padding:10px 12px; font-size:1rem; border:0; border-radius:6px; cursor:pointer;">Save WiFi Settings</button>
-    </div>
-    
-    <div class="cardNote" style="margin-top:10px">
-      <strong>Captive Portal:</strong> When connecting to the Access Point, your browser will automatically open this configuration page.
     </div>
   </div>
 </details>
@@ -140,7 +141,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
       <span>DyingFlicker trigger volts: <span id="dfThreshLabel" style="display:none"></span></span>
     </label>
     <input type="text" id="dfThreshText" value="3.60" style="width:40px; height:24px; text-align:center;">
-    <input type="range" id="dfThresh" min="3.55" max="3.70" step="0.01" value="3.60" style="flex:1;">
+    <input type="range" id="dfThresh" min="3.5" max="3.8" step="0.01" value="3.60" style="flex:1;">
   </div>
     <div class="row" style="align-items:center; gap:12px;">
     <label style="display:flex;align-items:center;gap:8px;margin:0; width:140px; flex:0 0 140px">
@@ -148,7 +149,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
       <span>Simulate lowV</span>
     </label>
     <input type="text" id="simVbatText" value="3.60" style="width:40px; height:24px; text-align:center;">
-    <input type="range" id="simVbat" min="3.50" max="3.80" step="0.01" value="3.60" style="flex:1;">
+    <input type="range" id="simVbat" min="3.5" max="3.8" step="0.01" value="3.60" style="flex:1;">
   </div>
     <div class="row" style="align-items:center; gap:12px;">
     <label style="display:flex;align-items:center;gap:8px;margin:0; width:140px; flex:0 0 140px">
@@ -229,9 +230,8 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
 <div class="card">
   <label class="section-title" style="font-size:20px">PRESETS <span class="subhead">(Short-tap→Apply)  (Long-press→Save)</span></label>
   <div class="presetsGrid" id="presetsGrid"></div>
+  <button id="clearPresetBtn" style="width:100%; background:#f44336; color:#fff; padding:10px 12px; font-size:1rem; border:0; border-radius:6px; cursor:pointer; margin-top:10px;">Clear Preset</button>
 </div>
-
-<div class="sticky"><button class="primary" id="saveBtn">Save Settings</button></div>
 
 <!-- Color Picker Modal -->
 <div class="modal" id="pickerModal">
@@ -245,6 +245,17 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
     <div class="gridA" style="grid-template-columns:1fr 1fr; margin-top:10px">
       <button id="cancel">Cancel</button>
       <button id="ok" style="background:#0a84ff;color:#fff">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- Clear Preset Confirmation Modal -->
+<div class="modal" id="clearPresetModal">
+  <div class="card2">
+    <div class="row"><b id="clearPresetMsg">Erase Preset 1?</b></div>
+    <div class="gridA" style="grid-template-columns:1fr 1fr; margin-top:10px">
+      <button id="clearCancel">Cancel</button>
+      <button id="clearOk" style="background:#0a84ff;color:#fff">OK</button>
     </div>
   </div>
 </div>
@@ -305,9 +316,6 @@ function livePicker(){
   if (dt>=30){ if(pickerSendTimer){clearTimeout(pickerSendTimer);pickerSendTimer=0;} lastPickerSend=n; live(); }
   else if(!pickerSendTimer){ pickerSendTimer=setTimeout(()=>{ lastPickerSend=nowMs(); pickerSendTimer=0; live(); }, 30-dt); }
 }
-
-function doSave(){ fetch('/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(collect())})
-  .then(r=>r.text()).then(t=>{ alert(t); markDirty(false); }); }
 
 let modal,canvas,ctx,preview,valSlider,hexInput,currentTarget=null,h=0,s=1,v=1,center={x:120,y:120},radius=110;
 let favs=['#FF6A00','#00C8FF','#FFFFFF','#00FFAA','#FF00FF','#FFA500','#00FF00','#0000FF','#FFFF00'];
@@ -475,7 +483,7 @@ function attachPicker(){
 }
 
 // ----- Presets (8) -----
-let presetMeta = {active:-1, items:new Array(8).fill(null)};
+let presetMeta = {active:-1, items:new Array(10).fill(null)};
 function fetchPresets(){ fetch('/presets').then(r=>r.json()).then(j=>{
   presetMeta = j; renderPresets(); setActivePresetButton(j.active);
 });}
@@ -483,7 +491,7 @@ function presetButtonFaceColor(idx){ const item = presetMeta.items[idx]; return 
 function renderPresets(){
   const grid=document.getElementById('presetsGrid'); if(!grid) return;
   grid.innerHTML='';
-  for(let i=0;i<8;i++){
+  for(let i=0;i<10;i++){
     const btn=document.createElement('button');
     btn.className='presetBtn';
     const face = presetButtonFaceColor(i);
@@ -544,7 +552,6 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{
   if(e.target&&(e.target.tagName==='SELECT'||e.target.type==='range'||e.target.type==='checkbox')) markDirty(true);
 });
-document.getElementById('saveBtn').addEventListener('click',doSave);
 
 
 // ---- DF threshold + simulation bindings ----
@@ -561,7 +568,7 @@ document.getElementById('saveBtn').addEventListener('click',doSave);
   function syncThresh(fromText){
     let v = fromText ? parseFloat(thT.value) : parseFloat(th.value);
     if (isNaN(v)) v = 3.60;
-    v = clamp(v, 3.55, 3.70);
+    v = clamp(v, 3.5, 3.8);
     th.value = v.toFixed(2);
     thT.value = v.toFixed(2);
     thL.innerText = v.toFixed(2);
@@ -570,7 +577,7 @@ document.getElementById('saveBtn').addEventListener('click',doSave);
   function syncSim(fromText){
     let v = fromText ? parseFloat(svT.value) : parseFloat(sv.value);
     if (isNaN(v)) v = 3.60;
-    v = clamp(v, 3.50, 4.20);
+    v = clamp(v, 3.5, 3.8);
     sv.value = v.toFixed(2);
     svT.value = v.toFixed(2);
     liveThrottle();
@@ -653,6 +660,53 @@ function updateWifiIdleLabel(){
   
   // Update WiFi status on initial load and periodic updates
   window.updateWiFiStatusFromJSON = updateWiFiStatus;
+})();
+
+// Clear Preset button functionality
+(function(){
+  const clearBtn = document.getElementById('clearPresetBtn');
+  const clearModal = document.getElementById('clearPresetModal');
+  const clearMsg = document.getElementById('clearPresetMsg');
+  const clearCancel = document.getElementById('clearCancel');
+  const clearOk = document.getElementById('clearOk');
+  
+  if (clearBtn && clearModal) {
+    clearBtn.addEventListener('click', ()=>{
+      const activeIdx = presetMeta.active;
+      if (activeIdx < 0 || activeIdx > 9) {
+        alert('No active preset to clear');
+        return;
+      }
+      clearMsg.textContent = 'Erase Preset ' + (activeIdx + 1) + '?';
+      clearModal.style.display = 'flex';
+    });
+    
+    if (clearCancel) {
+      clearCancel.addEventListener('click', ()=>{
+        clearModal.style.display = 'none';
+      });
+    }
+    
+    if (clearOk) {
+      clearOk.addEventListener('click', ()=>{
+        const activeIdx = presetMeta.active;
+        if (activeIdx >= 0 && activeIdx <= 9) {
+          fetch('/presetClear',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idx:activeIdx})})
+            .then(r=>r.text())
+            .then(msg=>{
+              clearModal.style.display = 'none';
+              fetchPresets();
+            })
+            .catch(err=>{
+              alert('Error clearing preset: ' + err);
+              clearModal.style.display = 'none';
+            });
+        } else {
+          clearModal.style.display = 'none';
+        }
+      });
+    }
+  }
 })();
 
 function safeInit(){ try{ attachPicker(); bindSwatches(); fetchPresets(); }catch(e){} }

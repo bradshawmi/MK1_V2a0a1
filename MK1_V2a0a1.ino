@@ -1864,7 +1864,7 @@ if (st["master"].is<uint8_t>()) masterBrightness = st["master"].as<uint8_t>();
 
     if (st.containsKey("dfThresholdV")) { 
       float th = st["dfThresholdV"].as<float>(); 
-      if (th < 3.55f) th = 3.55f; if (th > 3.70f) th = 3.70f; 
+      if (th < 3.5f) th = 3.5f; if (th > 3.8f) th = 3.8f; 
       dfThresholdV = th; 
     
       prefWriteFloat(PREF_DF_THRESH, dfThresholdV);
@@ -1872,7 +1872,7 @@ if (st["master"].is<uint8_t>()) masterBrightness = st["master"].as<uint8_t>();
     if (st.containsKey("simVbatEnabled")) simVbatEnabled = st["simVbatEnabled"].as<bool>();
     if (st.containsKey("simVbat")) {
       float sv = st["simVbat"].as<float>();
-      if (sv < 3.50f) sv = 3.50f; if (sv > 4.20f) sv = 4.20f;
+      if (sv < 3.5f) sv = 3.5f; if (sv > 3.8f) sv = 3.8f;
       simVbat = sv;
     }
     if (st.containsKey("wifiIdleAutoOff")) wifiIdleAutoOff = st["wifiIdleAutoOff"].as<bool>();
@@ -1892,7 +1892,7 @@ for(int z=0; z<3; z++){
 }
 
 static bool applyPresetIndexInternal(int idx, bool persistActive){
-  if (idx < 0 || idx > 7) return false;
+  if (idx < 0 || idx > 9) return false;
   String blob = prefReadString(presetKeyFor(idx));
   if (!blob.length()) return false;
 
@@ -1910,24 +1910,24 @@ static bool applyPresetIndexInternal(int idx, bool persistActive){
 }
 
 static bool isPresetSaved(int idx){
-  if (idx < 0 || idx > 7) return false;
+  if (idx < 0 || idx > 9) return false;
   String blob = prefReadString(presetKeyFor(idx));
   return blob.length() > 0;
 }
 
 static bool cyclePresetNext(){
-  int savedCount = 0; for (int i=0;i<8;i++) if (isPresetSaved(i)) savedCount++;
+  int savedCount = 0; for (int i=0;i<10;i++) if (isPresetSaved(i)) savedCount++;
   if (savedCount == 0) return false;
 
-  int start = (activePreset >= 0 && activePreset <= 7) ? (activePreset + 1) : 0;
-  for (int k=0; k<8; k++){
-    int idx = (start + k) % 8;
+  int start = (activePreset >= 0 && activePreset <= 9) ? (activePreset + 1) : 0;
+  for (int k=0; k<10; k++){
+    int idx = (start + k) % 10;
     if (isPresetSaved(idx)){
       return applyPresetIndexInternal(idx, true);
     }
   }
   if (savedCount == 1){
-    for (int i=0;i<8;i++) if (isPresetSaved(i)) return applyPresetIndexInternal(i, true);
+    for (int i=0;i<10;i++) if (isPresetSaved(i)) return applyPresetIndexInternal(i, true);
   }
   return false;
 }
@@ -1975,7 +1975,7 @@ static void loadPrefs(){
   autoDFEnabled    = prefs.getBool(PREF_AUTO_DF, autoDFEnabled);
   dfThresholdV     = prefs.getFloat(PREF_DF_THRESH, dfThresholdV);
   wifiIdleAutoOff  = prefs.getBool(PREF_WIFI_IDLE, wifiIdleAutoOff);
-  if (!(dfThresholdV>=3.55f && dfThresholdV<=3.70f)) dfThresholdV=3.60f;
+  if (!(dfThresholdV>=3.5f && dfThresholdV<=3.8f)) dfThresholdV=3.60f;
   activePreset     = prefs.getChar(PREF_ACTIVE_PRESET, activePreset);
 
   for(int z=0;z<3;z++){
@@ -2061,8 +2061,8 @@ static void savePrefsFromJSON(const ArduinoJson::JsonObject &root){
   
   if (root.containsKey("dfThresholdV")) {
     float th = root["dfThresholdV"].as<float>();
-    if (th < 3.55f) th = 3.55f;
-    if (th > 3.70f) th = 3.70f;
+    if (th < 3.5f) th = 3.5f;
+    if (th > 3.8f) th = 3.8f;
     dfThresholdV = th;
     prefs.putFloat(PREF_DF_THRESH, dfThresholdV);
   }
@@ -2322,9 +2322,9 @@ server.on("/update", HTTP_POST, [](){
       wifiIdleAutoOff = root["wifiIdleAutoOff"].as<bool>(); 
       prefWriteBool(PREF_WIFI_IDLE, wifiIdleAutoOff); 
     }
-    if (root.containsKey("dfThresholdV")) { float th = root["dfThresholdV"].as<float>(); if (th<3.55f) th=3.55f; if (th>3.70f) th=3.70f; dfThresholdV = th; }
+    if (root.containsKey("dfThresholdV")) { float th = root["dfThresholdV"].as<float>(); if (th<3.5f) th=3.5f; if (th>3.8f) th=3.8f; dfThresholdV = th; }
     if (root.containsKey("simVbatEnabled")) simVbatEnabled = root["simVbatEnabled"].as<bool>();
-    if (root.containsKey("simVbat")) { float sv = root["simVbat"].as<float>(); if (sv<3.50f) sv=3.50f; if (sv>4.20f) sv=4.20f; simVbat = sv; }
+    if (root.containsKey("simVbat")) { float sv = root["simVbat"].as<float>(); if (sv<3.5f) sv=3.5f; if (sv>3.8f) sv=3.8f; simVbat = sv; }
 
     if (!root["zones"].is<JsonArrayConst>() || root["zones"].size() < 3) {
       server.send(400,"text/plain","Bad zones"); return;
@@ -2386,7 +2386,7 @@ server.on("/update", HTTP_POST, [](){
     auto items = doc["items"].to<JsonArray>();
     Preferences prefs;
     prefBeginRead(prefs);
-    for(int i=0;i<8;i++){
+    for(int i=0;i<10;i++){
       String blob = prefs.getString(presetKeyFor(i), "");
       JsonObject it = items.add<JsonObject>();
       if (blob.length()){
@@ -2413,7 +2413,7 @@ server.on("/update", HTTP_POST, [](){
     StaticJsonDocument<256> doc;
     if (deserializeJson(doc, server.arg("plain"))) { server.send(400,"text/plain","Bad JSON"); return; }
     int idx = doc["idx"] | -1;
-    if (idx < 0 || idx > 7){ server.send(400,"text/plain","Bad index"); return; }
+    if (idx < 0 || idx > 9){ server.send(400,"text/plain","Bad index"); return; }
 
     String blob; serializeJson(st, blob);
     Preferences prefs;
@@ -2431,7 +2431,7 @@ server.on("/presetApply", HTTP_POST, [](){
     StaticJsonDocument<256> doc;
     if (deserializeJson(doc, server.arg("plain"))){ server.send(400,"text/plain","Bad JSON"); return; }
     int idx = doc["idx"] | -1;
-    if (idx < 0 || idx > 7){ server.send(400,"text/plain","Bad index"); return; }
+    if (idx < 0 || idx > 9){ server.send(400,"text/plain","Bad index"); return; }
 
     String blob = prefReadString(presetKeyFor(idx));
     if (!blob.length()){ server.send(404,"text/plain","No preset"); return; }
@@ -2487,10 +2487,32 @@ server.on("/status",  HTTP_GET, [](){
   server.on("/presetDump", HTTP_GET, [](){
     if (!server.hasArg("idx")) { server.send(400,"text/plain","Missing idx"); return; }
     int idx = server.arg("idx").toInt();
-    if (idx < 0 || idx > 7) { server.send(400,"text/plain","Bad idx"); return; }
+    if (idx < 0 || idx > 9) { server.send(400,"text/plain","Bad idx"); return; }
     String blob = prefReadString(presetKeyFor(idx));
     if (!blob.length()) { server.send(404,"text/plain","NO_PRESET"); return; }
     server.send(200, "application/json", blob);
+  });
+
+  server.on("/presetClear", HTTP_POST, [](){
+    if (!server.hasArg("plain")) { server.send(400,"text/plain","Missing body"); return; }
+    recordActivity();
+    StaticJsonDocument<256> doc;
+    if (deserializeJson(doc, server.arg("plain"))){ server.send(400,"text/plain","Bad JSON"); return; }
+    int idx = doc["idx"] | -1;
+    if (idx < 0 || idx > 9){ server.send(400,"text/plain","Bad index"); return; }
+    
+    Preferences prefs;
+    prefBeginWrite(prefs);
+    prefs.remove(presetKeyFor(idx));
+    if (activePreset == idx) {
+      activePreset = -1;
+      prefs.putChar(PREF_ACTIVE_PRESET, activePreset);
+    }
+    prefEnd(prefs);
+    
+    addDebugf("Preset %d cleared", idx);
+    stateEpoch++;
+    server.send(200,"text/plain","Preset cleared");
   });
 
   server.on("/", HTTP_GET, [](){
