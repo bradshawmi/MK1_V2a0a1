@@ -66,6 +66,7 @@ static AuroraState gAurora[3] = {0};
 #include <pgmspace.h>
 #include <WiFi.h>
 #include <WebServer.h>
+#include <DNSServer.h>
 #include <Preferences.h>
 #include <FastLED.h>
 #include <ArduinoJson.h>
@@ -455,6 +456,8 @@ static uint8_t osGlow[NUM_LEDS] = {0};
 static RingCoord gRingLUT[NUM_LEDS];
 static bool      gRingLUTInited = false;
 static WebServer server(80);
+static DNSServer dnsServer;
+static const byte DNS_PORT = 53;
 static Preferences prefs;
 
 struct Zone {
@@ -1998,6 +2001,10 @@ static void startAPMode() {
   WiFi.softAP(apSSID.c_str(), apPassword.c_str());
   addDebugf("AP started: %s IP: %s", apSSID.c_str(), WiFi.softAPIP().toString().c_str());
   wifiStationMode = false;
+  
+  // Start DNS server for captive portal
+  dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
+  addDebug("DNS server started for captive portal");
 }
 static void saveFavorite(uint8_t idx, const String &hex){
   if (idx>8) return;
@@ -2134,6 +2141,7 @@ static void wifiDisable(){
     WiFi.disconnect(true);
   } else {
     WiFi.softAPdisconnect(true);
+    dnsServer.stop();  // Stop DNS server when AP is disabled
   }
   WiFi.mode(WIFI_OFF);
   addDebug("Wi-Fi OFF");
@@ -2605,6 +2613,18 @@ server.on("/status",  HTTP_GET, [](){
   server.on("/", HTTP_GET, [](){
     server.send_P(200, "text/html; charset=utf-8", INDEX_HTML);
   });
+  
+  // Captive portal: redirect all unknown requests to main page in AP mode
+  server.onNotFound([](){
+    if (!wifiStationMode) {
+      // In AP mode, redirect to captive portal
+      server.sendHeader("Location", "http://" + WiFi.softAPIP().toString());
+      server.send(302, "text/plain", "");
+    } else {
+      server.send(404, "text/plain", "Not found");
+    }
+  });
+  
 server.begin();
   addDebug("HTTP server started");
 
@@ -2619,6 +2639,12 @@ server.begin();
 static bool wifiOnCached = true; // mirror (avoid linker surprises)
 void loop(){
   server.handleClient();
+  
+  // Process DNS requests for captive portal (AP mode only)
+  if (!wifiStationMode && wifiOn) {
+    dnsServer.processNextRequest();
+  }
+  
   sampleBattery();
 
   // Wi-Fi inactivity handling
