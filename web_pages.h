@@ -142,6 +142,16 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
       <strong id="hostnameLabel" style="display:none">Easy Access:</strong> <a id="wifiHostname" href="#" target="_blank" style="display:none; color:#0a84ff; font-weight:600">-</a>
     </div>
     
+    <!-- QR Code for easy access (shown when connected to home WiFi) -->
+    <div id="qrCodeSection" style="display:none; background:#f0f0f0; padding:15px; border-radius:8px; margin-bottom:15px; text-align:center">
+      <div style="font-weight:600; color:#111; margin-bottom:10px">📱 Scan to Access Device</div>
+      <canvas id="qrCanvas" style="margin:0 auto; display:block"></canvas>
+      <div style="margin-top:10px; font-size:0.9rem; color:#555">
+        Scan this QR code with your phone to easily access the device at<br>
+        <strong id="qrUrl" style="color:#0a84ff">-</strong>
+      </div>
+    </div>
+    
     <div style="display:flex; gap:8px; align-items:flex-end">
       <div style="flex:1">
         <label style="font-weight:600; color:#111; margin-top:10px">Home WiFi SSID</label>
@@ -169,9 +179,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
     <div class="cardNote" style="margin-top:10px">
       <strong>Easy Access:</strong><br>
       • <strong>AP Mode:</strong> Browser opens automatically at http://192.168.4.1<br>
-      • <strong>Home WiFi:</strong> Access at <strong>http://arc.local</strong> or use IP address shown above<br>
-      <br>
-      <small><em>Note: Some Android browsers may not support .local addresses. If http://arc.local doesn't work, use the IP address instead.</em></small><br>
+      • <strong>Home WiFi:</strong> Scan the QR code above with your phone camera, or use the IP address shown above<br>
       <br>
       On boot, the device attempts to connect to home WiFi for 1 minute. If unsuccessful, it creates an Access Point with the configured SSID/password. Changes to AP settings require a restart.
     </div>
@@ -618,6 +626,40 @@ function updateWifiIdleLabel(){
 (function(){
   const WIFI_RECONNECT_RELOAD_DELAY_MS = 3000;  // Wait 3 seconds before reload after reconnect
   
+  // Simple QR Code generator
+  function generateQRCode(text, canvas) {
+    try {
+      const size = 200;
+      const ctx = canvas.getContext('2d');
+      canvas.width = size;
+      canvas.height = size;
+      
+      // Use a simple approach: create a URL to a QR code API
+      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}`;
+      
+      // Load QR code image
+      const img = new Image();
+      img.onload = function() {
+        ctx.drawImage(img, 0, 0, size, size);
+      };
+      img.onerror = function() {
+        // Fallback: draw a simple pattern if API fails
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, size, size);
+        ctx.fillStyle = '#000';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('QR Code', size/2, size/2 - 20);
+        ctx.fillText('Unavailable', size/2, size/2);
+        ctx.font = '12px Arial';
+        ctx.fillText(text, size/2, size/2 + 30);
+      };
+      img.src = qrApiUrl;
+    } catch(e) {
+      console.error('QR generation error:', e);
+    }
+  }
+  
   function updateWiFiStatus(j) {
     try {
       const statusEl = document.getElementById('wifiStatus');
@@ -640,6 +682,24 @@ function updateWifiIdleLabel(){
       }
       
       ipEl.textContent = j.wifiIP || '-';
+      
+      // Show QR code when connected to home WiFi
+      const qrSection = document.getElementById('qrCodeSection');
+      const qrCanvas = document.getElementById('qrCanvas');
+      const qrUrlEl = document.getElementById('qrUrl');
+      
+      if (j.wifiStationMode && j.wifiConnected && j.wifiIP) {
+        if (qrSection && qrCanvas && qrUrlEl) {
+          const url = 'http://' + j.wifiIP;
+          qrUrlEl.textContent = url;
+          generateQRCode(url, qrCanvas);
+          qrSection.style.display = 'block';
+        }
+      } else {
+        if (qrSection) {
+          qrSection.style.display = 'none';
+        }
+      }
       
       // Show hostname if available (station mode)
       if (j.wifiHostname && j.wifiConnected) {
