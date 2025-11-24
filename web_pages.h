@@ -142,12 +142,30 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
       <strong id="hostnameLabel" style="display:none">Easy Access:</strong> <a id="wifiHostname" href="#" target="_blank" style="display:none; color:#0a84ff; font-weight:600">-</a>
     </div>
     
+    <!-- Instructions for finding device after WiFi setup (shown in AP mode) -->
+    <div id="apModeInstructions" style="display:none; background:#e3f2fd; padding:15px; border-radius:8px; margin-bottom:15px; border-left:4px solid #2196F3">
+      <div style="font-weight:600; color:#1976d2; margin-bottom:10px">📱 After Connecting to Home WiFi:</div>
+      <div style="font-size:0.95rem; color:#333; line-height:1.6">
+        <strong>Android Users:</strong><br>
+        1. Go to your phone's WiFi settings<br>
+        2. Tap the (i) icon next to your WiFi network name<br>
+        3. Find "Router" or "Gateway" IP (e.g., 192.168.1.1)<br>
+        4. Open browser and go to your router's IP<br>
+        5. Look for "Connected Devices" or "DHCP Clients"<br>
+        6. Find device named "arc" or "ESP32" in the list<br>
+        7. Note its IP address and access the device at that IP<br>
+        <br>
+        <strong>iOS/Mac/Windows/Linux Users:</strong><br>
+        Simply type <strong style="color:#0a84ff">http://arc.local</strong> in your browser
+      </div>
+    </div>
+    
     <!-- QR Code for easy access (shown when connected to home WiFi) -->
     <div id="qrCodeSection" style="display:none; background:#f0f0f0; padding:15px; border-radius:8px; margin-bottom:15px; text-align:center">
-      <div style="font-weight:600; color:#111; margin-bottom:10px">📱 Scan to Access Device</div>
+      <div style="font-weight:600; color:#111; margin-bottom:10px">📱 Scan to Save This Address</div>
       <canvas id="qrCanvas" style="margin:0 auto; display:block"></canvas>
       <div style="margin-top:10px; font-size:0.9rem; color:#555">
-        Scan this QR code with your phone to easily access the device at<br>
+        Scan this QR code to open and bookmark this page:<br>
         <strong id="qrUrl" style="color:#0a84ff">-</strong>
       </div>
     </div>
@@ -177,11 +195,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
     </div>
     
     <div class="cardNote" style="margin-top:10px">
-      <strong>Easy Access:</strong><br>
-      • <strong>AP Mode:</strong> Browser opens automatically at http://192.168.4.1<br>
-      • <strong>Home WiFi:</strong> Scan the QR code above with your phone camera, or use the IP address shown above<br>
+      <strong>Setup Instructions:</strong><br>
+      1. Configure your home WiFi network above<br>
+      2. Click "Save WiFi Settings" and device will restart<br>
+      3. Follow the instructions shown above to find your device on home WiFi<br>
       <br>
-      On boot, the device attempts to connect to home WiFi for 1 minute. If unsuccessful, it creates an Access Point with the configured SSID/password. Changes to AP settings require a restart.
+      On boot, the device attempts to connect to home WiFi for 1 minute. If unsuccessful, it creates an Access Point with the configured SSID/password.
     </div>
   </div>
 </details>
@@ -683,12 +702,25 @@ function updateWifiIdleLabel(){
       
       ipEl.textContent = j.wifiIP || '-';
       
-      // Show QR code when connected to home WiFi
+      // Show AP mode instructions or QR code depending on mode
+      const apInstructions = document.getElementById('apModeInstructions');
       const qrSection = document.getElementById('qrCodeSection');
       const qrCanvas = document.getElementById('qrCanvas');
       const qrUrlEl = document.getElementById('qrUrl');
       
-      if (j.wifiStationMode && j.wifiConnected && j.wifiIP) {
+      if (!j.wifiStationMode) {
+        // AP Mode: Show instructions for finding device after WiFi setup
+        if (apInstructions) {
+          apInstructions.style.display = 'block';
+        }
+        if (qrSection) {
+          qrSection.style.display = 'none';
+        }
+      } else if (j.wifiStationMode && j.wifiConnected && j.wifiIP) {
+        // Station Mode: Show QR code with current IP
+        if (apInstructions) {
+          apInstructions.style.display = 'none';
+        }
         if (qrSection && qrCanvas && qrUrlEl) {
           const url = 'http://' + j.wifiIP;
           qrUrlEl.textContent = url;
@@ -696,6 +728,10 @@ function updateWifiIdleLabel(){
           qrSection.style.display = 'block';
         }
       } else {
+        // Disconnected: Hide both
+        if (apInstructions) {
+          apInstructions.style.display = 'none';
+        }
         if (qrSection) {
           qrSection.style.display = 'none';
         }
