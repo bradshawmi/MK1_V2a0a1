@@ -101,87 +101,13 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
   <span id="dirty" class="dot"></span>
 </div>
 
-<div class="card">
-  <div class="row" style="justify-content:space-between; align-items:center;"><label class="section-title" style="font-size:20px">MASTER BRIGHTNESS</label><span class="small" style="color:#000">Batt. <span id="batteryMB">--.--</span> V</span>
-</div>
-  <input type="range" id="master" min="0" max="255" value="128">
-  <div class="row" style="margin-top:6px; align-items:center; gap:12px;">
-  <label style="display:flex;align-items:center;gap:8px;margin:0; width:140px; flex:0 0 140px">
-    <input type="checkbox" id="autoDF">
-    <span>DyingFlicker trigger volts: <span id="dfThreshLabel" style="display:none"></span></span>
-  </label>
-  <input type="text" id="dfThreshText" value="3.60" style="width:40px; height:24px; text-align:center;">
-  <input type="range" id="dfThresh" min="3.55" max="3.70" step="0.01" value="3.60" style="flex:1;">
-</div>
-  <div class="row" style="align-items:center; gap:12px;">
-  <label style="display:flex;align-items:center;gap:8px;margin:0; width:140px; flex:0 0 140px">
-    <input type="checkbox" id="simVbatEn">
-    <span>Simulate lowV</span>
-  </label>
-  <input type="text" id="simVbatText" value="3.60" style="width:40px; height:24px; text-align:center;">
-  <input type="range" id="simVbat" min="3.50" max="3.80" step="0.01" value="3.60" style="flex:1;">
-</div>
-  <div class="row" style="align-items:center; gap:12px;">
-  <label style="display:flex;align-items:center;gap:8px;margin:0; width:140px; flex:0 0 140px">
-    <input type="checkbox" id="wifiIdleAutoOff">
-    <span id="wifiIdleLabel">Wi‑Fi idle timer ON</span>
-  </label>
-</div>
-  <div class="cardNote" id="simNote" style="display:none"></div>
-  <div class="cardNote" id="mbNote">
-    PUSHBUTTON: (Short-tap→Restore Wi-Fi)<br>(Long-press→Sleep/Wake) (Double-tap→Next preset).
-  </div>
-</div>
-
 <details class="card">
-  <summary class="section-title">WiFi CONFIGURATION <span class="subhead">(Network Settings)</span></summary>
+  <summary class="section-title">Wi-Fi</summary>
   <div style="margin-top:10px">
     <div class="small" style="margin-bottom:10px; color:#000">
-      <strong>Status:</strong> <span id="wifiStatus">Loading...</span><br>
-      <strong>IP Address:</strong> <span id="wifiIP">-</span><br>
-      <strong id="hostnameLabel" style="display:none">Easy Access:</strong> <a id="wifiHostname" href="#" target="_blank" style="display:none; color:#0a84ff; font-weight:600">-</a>
+      <strong>Status:</strong> <span id="wifiStatus">AP Mode</span><br>
+      <strong>IP Address:</strong> <span id="wifiIP">192.168.4.1</span>
     </div>
-    
-    <!-- Instructions for finding device after WiFi setup (shown in AP mode) -->
-    <div id="apModeInstructions" style="display:none; background:#e3f2fd; padding:15px; border-radius:8px; margin-bottom:15px; border-left:4px solid #2196F3">
-      <div style="font-weight:600; color:#1976d2; margin-bottom:10px">📱 After Connecting to Home WiFi:</div>
-      <div style="font-size:0.95rem; color:#333; line-height:1.6">
-        <strong>Android Users:</strong><br>
-        1. Go to your phone's WiFi settings<br>
-        2. Tap the (i) icon next to your WiFi network name<br>
-        3. Find "Router" or "Gateway" IP (e.g., 192.168.1.1)<br>
-        4. Open browser and go to your router's IP<br>
-        5. Look for "Connected Devices" or "DHCP Clients"<br>
-        6. Find device named "arc" or "ESP32" in the list<br>
-        7. Note its IP address and access the device at that IP<br>
-        <br>
-        <strong>iOS/Mac/Windows/Linux Users:</strong><br>
-        Simply type <strong style="color:#0a84ff">http://arc.local</strong> in your browser
-      </div>
-    </div>
-    
-    <!-- QR Code for easy access (shown when connected to home WiFi) -->
-    <div id="qrCodeSection" style="display:none; background:#f0f0f0; padding:15px; border-radius:8px; margin-bottom:15px; text-align:center">
-      <div style="font-weight:600; color:#111; margin-bottom:10px">📱 Scan to Save This Address</div>
-      <canvas id="qrCanvas" style="margin:0 auto; display:block"></canvas>
-      <div style="margin-top:10px; font-size:0.9rem; color:#555">
-        Scan this QR code to open and bookmark this page:<br>
-        <strong id="qrUrl" style="color:#0a84ff">-</strong>
-      </div>
-    </div>
-    
-    <div style="display:flex; gap:8px; align-items:flex-end">
-      <div style="flex:1">
-        <label style="font-weight:600; color:#111; margin-top:10px">Home WiFi SSID</label>
-        <select id="wifiSSID" style="width:100%; height:38px; font-size:1rem; padding:4px">
-          <option value="">-- Select Network --</option>
-        </select>
-      </div>
-      <button id="scanNetworksBtn" style="padding:10px 12px; height:38px; background:#9C27B0; color:#fff; border:0; border-radius:6px; cursor:pointer; white-space:nowrap">Scan Networks</button>
-    </div>
-    
-    <label style="font-weight:600; color:#111; margin-top:10px">Home WiFi Password</label>
-    <input type="text" id="wifiPassword" placeholder="Enter WiFi password" maxlength="64">
     
     <label style="font-weight:600; color:#111; margin-top:10px">Access Point SSID</label>
     <input type="text" id="apSSID" placeholder="ArcReactorMK1" maxlength="32">
@@ -189,18 +115,50 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
     <label style="font-weight:600; color:#111; margin-top:10px">Access Point Password</label>
     <input type="text" id="apPassword" placeholder="Minimum 8 characters" maxlength="64">
     
-    <div class="gridA" style="margin-top:10px;">
-      <button id="wifiSaveBtn" style="background:#4CAF50; color:#fff">Save WiFi Settings</button>
-      <button id="wifiReconnectBtn" style="background:#0a84ff; color:#fff">Reconnect Now</button>
+    <div style="margin-top:10px;">
+      <button id="wifiSaveBtn" style="width:100%; background:#4CAF50; color:#fff; padding:10px 12px; font-size:1rem; border:0; border-radius:6px; cursor:pointer;">Save WiFi Settings</button>
     </div>
     
     <div class="cardNote" style="margin-top:10px">
-      <strong>Setup Instructions:</strong><br>
-      1. Configure your home WiFi network above<br>
-      2. Click "Save WiFi Settings" and device will restart<br>
-      3. Follow the instructions shown above to find your device on home WiFi<br>
-      <br>
-      On boot, the device attempts to connect to home WiFi for 1 minute. If unsuccessful, it creates an Access Point with the configured SSID/password.
+      <strong>Captive Portal:</strong> When connecting to the Access Point, your browser will automatically open this configuration page.
+    </div>
+  </div>
+</details>
+
+<details class="card" open>
+  <summary class="section-title">
+    <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+      <span>MASTER BRIGHTNESS</span>
+      <span class="small" style="color:#000; margin-right:10px;">Batt. <span id="batteryMB">--.--</span> V</span>
+    </div>
+  </summary>
+  <div style="margin-top:10px;">
+    <input type="range" id="master" min="0" max="255" value="128">
+    <div class="row" style="margin-top:6px; align-items:center; gap:12px;">
+    <label style="display:flex;align-items:center;gap:8px;margin:0; width:140px; flex:0 0 140px">
+      <input type="checkbox" id="autoDF">
+      <span>DyingFlicker trigger volts: <span id="dfThreshLabel" style="display:none"></span></span>
+    </label>
+    <input type="text" id="dfThreshText" value="3.60" style="width:40px; height:24px; text-align:center;">
+    <input type="range" id="dfThresh" min="3.55" max="3.70" step="0.01" value="3.60" style="flex:1;">
+  </div>
+    <div class="row" style="align-items:center; gap:12px;">
+    <label style="display:flex;align-items:center;gap:8px;margin:0; width:140px; flex:0 0 140px">
+      <input type="checkbox" id="simVbatEn">
+      <span>Simulate lowV</span>
+    </label>
+    <input type="text" id="simVbatText" value="3.60" style="width:40px; height:24px; text-align:center;">
+    <input type="range" id="simVbat" min="3.50" max="3.80" step="0.01" value="3.60" style="flex:1;">
+  </div>
+    <div class="row" style="align-items:center; gap:12px;">
+    <label style="display:flex;align-items:center;gap:8px;margin:0; width:140px; flex:0 0 140px">
+      <input type="checkbox" id="wifiIdleAutoOff">
+      <span id="wifiIdleLabel">Wi‑Fi idle timer ON</span>
+    </label>
+  </div>
+    <div class="cardNote" id="simNote" style="display:none"></div>
+    <div class="cardNote" id="mbNote">
+      PUSHBUTTON: (Short-tap→Restore Wi-Fi)<br>(Long-press→Sleep/Wake) (Double-tap→Next preset).
     </div>
   </div>
 </details>
@@ -643,209 +601,32 @@ function updateWifiIdleLabel(){
 
 // WiFi configuration handlers
 (function(){
-  const WIFI_RECONNECT_RELOAD_DELAY_MS = 3000;  // Wait 3 seconds before reload after reconnect
-  
-  // Simple QR Code generator
-  function generateQRCode(text, canvas) {
-    try {
-      const size = 200;
-      const ctx = canvas.getContext('2d');
-      canvas.width = size;
-      canvas.height = size;
-      
-      // Use a simple approach: create a URL to a QR code API
-      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}`;
-      
-      // Load QR code image
-      const img = new Image();
-      img.onload = function() {
-        ctx.drawImage(img, 0, 0, size, size);
-      };
-      img.onerror = function() {
-        // Fallback: draw a simple pattern if API fails
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(0, 0, size, size);
-        ctx.fillStyle = '#000';
-        ctx.font = '14px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('QR Code', size/2, size/2 - 20);
-        ctx.fillText('Unavailable', size/2, size/2);
-        ctx.font = '12px Arial';
-        ctx.fillText(text, size/2, size/2 + 30);
-      };
-      img.src = qrApiUrl;
-    } catch(e) {
-      console.error('QR generation error:', e);
-    }
-  }
-  
   function updateWiFiStatus(j) {
     try {
       const statusEl = document.getElementById('wifiStatus');
       const ipEl = document.getElementById('wifiIP');
-      const hostnameEl = document.getElementById('wifiHostname');
-      const hostnameLabelEl = document.getElementById('hostnameLabel');
       if (!statusEl || !ipEl) return;
       
-      if (j.wifiStationMode) {
-        if (j.wifiConnected) {
-          statusEl.textContent = 'Connected to ' + (j.wifiSSID || 'home WiFi');
-          statusEl.style.color = '#4CAF50';
-        } else {
-          statusEl.textContent = 'Station mode (disconnected)';
-          statusEl.style.color = '#FF9800';
-        }
-      } else {
-        statusEl.textContent = 'Access Point mode: ' + (j.apSSID || 'ArcReactorMK1');
-        statusEl.style.color = '#2196F3';
-      }
+      // Always AP mode now
+      statusEl.textContent = 'Access Point mode: ' + (j.apSSID || 'ArcReactorMK1');
+      statusEl.style.color = '#2196F3';
+      ipEl.textContent = j.wifiIP || '192.168.4.1';
       
-      ipEl.textContent = j.wifiIP || '-';
-      
-      // Show AP mode instructions or QR code depending on mode
-      const apInstructions = document.getElementById('apModeInstructions');
-      const qrSection = document.getElementById('qrCodeSection');
-      const qrCanvas = document.getElementById('qrCanvas');
-      const qrUrlEl = document.getElementById('qrUrl');
-      
-      if (!j.wifiStationMode) {
-        // AP Mode: Show instructions for finding device after WiFi setup
-        if (apInstructions) {
-          apInstructions.style.display = 'block';
-        }
-        if (qrSection) {
-          qrSection.style.display = 'none';
-        }
-      } else if (j.wifiStationMode && j.wifiConnected && j.wifiIP) {
-        // Station Mode: Show QR code with current IP
-        if (apInstructions) {
-          apInstructions.style.display = 'none';
-        }
-        if (qrSection && qrCanvas && qrUrlEl) {
-          const url = 'http://' + j.wifiIP;
-          qrUrlEl.textContent = url;
-          generateQRCode(url, qrCanvas);
-          qrSection.style.display = 'block';
-        }
-      } else {
-        // Disconnected: Hide both
-        if (apInstructions) {
-          apInstructions.style.display = 'none';
-        }
-        if (qrSection) {
-          qrSection.style.display = 'none';
-        }
-      }
-      
-      // Show hostname if available (station mode)
-      if (j.wifiHostname && j.wifiConnected) {
-        if (hostnameEl && hostnameLabelEl) {
-          hostnameEl.href = 'http://' + j.wifiHostname;
-          hostnameEl.textContent = j.wifiHostname;
-          hostnameEl.style.display = 'inline';
-          hostnameLabelEl.style.display = 'inline';
-        }
-      } else {
-        if (hostnameEl && hostnameLabelEl) {
-          hostnameEl.style.display = 'none';
-          hostnameLabelEl.style.display = 'none';
-        }
-      }
-      
-      // Populate WiFi fields
-      if (j.wifiSSID !== undefined) {
-        const dropdown = document.getElementById('wifiSSID');
-        if (dropdown) {
-          // Check if current SSID is already in dropdown
-          let found = false;
-          for (let i = 0; i < dropdown.options.length; i++) {
-            if (dropdown.options[i].value === j.wifiSSID) {
-              dropdown.selectedIndex = i;
-              found = true;
-              break;
-            }
-          }
-          // If not found, add it as an option and select it
-          if (!found && j.wifiSSID) {
-            const opt = document.createElement('option');
-            opt.value = j.wifiSSID;
-            opt.textContent = j.wifiSSID + ' (connected)';
-            opt.selected = true;
-            dropdown.insertBefore(opt, dropdown.options[1]); // Insert after "-- Select Network --"
-          }
-        }
-      }
+      // Populate AP fields and persist password
       if (j.apSSID !== undefined) {
         const apSsidEl = document.getElementById('apSSID');
         if (apSsidEl && !apSsidEl.value) apSsidEl.value = j.apSSID;
       }
+      if (j.apPassword !== undefined) {
+        const apPassEl = document.getElementById('apPassword');
+        if (apPassEl) apPassEl.value = j.apPassword; // Always update to persist password
+      }
     } catch(e) {}
-  }
-  
-  // Network scanning functionality
-  const scanBtn = document.getElementById('scanNetworksBtn');
-  const dropdown = document.getElementById('wifiSSID');
-  
-  if (scanBtn && dropdown) {
-    scanBtn.addEventListener('click', ()=>{
-      scanBtn.disabled = true;
-      scanBtn.textContent = 'Scanning...';
-      
-      // Save current selection
-      const currentValue = dropdown.value;
-      
-      fetch('/wifiScan')
-        .then(r=>r.json())
-        .then(data=>{
-          dropdown.innerHTML = '<option value="">-- Select Network --</option>';
-          
-          // If there was a current value, add it first
-          if (currentValue) {
-            const opt = document.createElement('option');
-            opt.value = currentValue;
-            opt.textContent = currentValue + ' (current)';
-            dropdown.appendChild(opt);
-          }
-          
-          if (data.networks && data.networks.length > 0) {
-            data.networks.forEach(net=>{
-              // Don't add duplicate of current network
-              if (net.ssid !== currentValue) {
-                const opt = document.createElement('option');
-                opt.value = net.ssid;
-                const lockIcon = net.secure ? '🔒 ' : '';
-                opt.textContent = `${lockIcon}${net.ssid} (${net.rssi} dBm)`;
-                dropdown.appendChild(opt);
-              }
-            });
-          } else if (!currentValue) {
-            const opt = document.createElement('option');
-            opt.value = '';
-            opt.textContent = '-- No networks found --';
-            dropdown.appendChild(opt);
-          }
-          
-          // Restore selection
-          if (currentValue) {
-            dropdown.value = currentValue;
-          }
-          
-          scanBtn.disabled = false;
-          scanBtn.textContent = 'Scan Networks';
-        })
-        .catch(err=>{
-          alert('Error scanning networks: ' + err);
-          scanBtn.disabled = false;
-          scanBtn.textContent = 'Scan Networks';
-        });
-    });
   }
   
   const saveBtn = document.getElementById('wifiSaveBtn');
   if (saveBtn) {
     saveBtn.addEventListener('click', ()=>{
-      const ssid = document.getElementById('wifiSSID').value;
-      const pass = document.getElementById('wifiPassword').value;
       const apSsid = document.getElementById('apSSID').value;
       const apPass = document.getElementById('apPassword').value;
       
@@ -855,8 +636,6 @@ function updateWifiIdleLabel(){
       }
       
       const data = {
-        wifiSSID: ssid,
-        wifiPassword: pass,
         apSSID: apSsid,
         apPassword: apPass
       };
@@ -868,23 +647,6 @@ function updateWifiIdleLabel(){
         })
         .catch(err=>{
           alert('Error saving WiFi settings: ' + err);
-        });
-    });
-  }
-  
-  const reconnectBtn = document.getElementById('wifiReconnectBtn');
-  if (reconnectBtn) {
-    reconnectBtn.addEventListener('click', ()=>{
-      if (!confirm('Reconnect WiFi now? This may temporarily disconnect you.')) return;
-      
-      fetch('/wifiReconnect', {method:'POST'})
-        .then(r=>r.text())
-        .then(msg=>{
-          alert(msg + ' Please wait a moment and check status.');
-          setTimeout(()=>{ window.location.reload(); }, WIFI_RECONNECT_RELOAD_DELAY_MS);
-        })
-        .catch(err=>{
-          alert('Error reconnecting: ' + err);
         });
     });
   }

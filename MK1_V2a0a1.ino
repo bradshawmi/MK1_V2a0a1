@@ -67,7 +67,6 @@ static AuroraState gAurora[3] = {0};
 #include <WiFi.h>
 #include <WebServer.h>
 #include <DNSServer.h>
-#include <ESPmDNS.h>
 #include <Preferences.h>
 #include <FastLED.h>
 #include <ArduinoJson.h>
@@ -385,14 +384,8 @@ static const char* AP_SSID = "ArcReactorMK1";
 static const char* AP_PASS = "arcreactor";
 
 // WiFi credentials (loaded from preferences)
-static String wifiSSID = "";
-static String wifiPassword = "";
 static String apSSID = "ArcReactorMK1";
 static String apPassword = "arcreactor";
-static bool wifiStationMode = false;  // true if connected to home WiFi, false if in AP mode
-static const unsigned long WIFI_CONNECT_TIMEOUT_MS = 60000UL;  // 1 minute timeout for boot
-static const unsigned long WIFI_RECONNECT_TIMEOUT_MS = 10000UL;  // 10 second timeout for reconnect
-static const unsigned long WIFI_MANUAL_RECONNECT_TIMEOUT_MS = 30000UL;  // 30 second timeout for manual reconnect
 
 static const float FLICKER_START_V = 3.60f;
 static const float FULL_OFF_V      = 3.51f;
@@ -1950,67 +1943,17 @@ static void loadFavorites(){
   prefEnd(prefs);
 }
 static void loadWiFiCredentials(){
-  wifiSSID = prefReadString(PREF_WIFI_SSID, "");
-  wifiPassword = prefReadString(PREF_WIFI_PASS, "");
   apSSID = prefReadString(PREF_AP_SSID, "ArcReactorMK1");
   apPassword = prefReadString(PREF_AP_PASS, "arcreactor");
-  addDebugf("WiFi creds loaded: SSID=%s", wifiSSID.c_str());
+  addDebugf("AP creds loaded: SSID=%s", apSSID.c_str());
 }
 
-static bool attemptWiFiConnection(const String& ssid, const String& password, unsigned long timeoutMs) {
-  if (ssid.length() == 0) {
-    addDebug("No WiFi SSID configured, skipping station mode");
-    return false;
-  }
-  
-  addDebugf("Attempting WiFi connection to: %s", ssid.c_str());
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid.c_str(), password.c_str());
-  
-  unsigned long startMs = millis();
-  unsigned long lastDot = 0;
-  while (WiFi.status() != WL_CONNECTED && (millis() - startMs) < timeoutMs) {
-    delay(500);
-    if (millis() - lastDot >= 2000) {  // Print status every 2 seconds
-      Serial.printf(" [%lu/%lu ms] ", millis() - startMs, timeoutMs);
-      lastDot = millis();
-    } else {
-      Serial.print(".");
-    }
-  }
-  Serial.println();
-  
-  if (WiFi.status() == WL_CONNECTED) {
-    addDebugf("WiFi connected! IP: %s RSSI: %d dBm", WiFi.localIP().toString().c_str(), WiFi.RSSI());
-    wifiStationMode = true;
-    
-    // Start mDNS for easy access via hostname
-    if (MDNS.begin("arc")) {
-      MDNS.addService("http", "tcp", 80);
-      addDebug("mDNS started: http://arc.local");
-    } else {
-      addDebug("mDNS failed to start");
-    }
-    
-    return true;
-  } else {
-    wl_status_t status = WiFi.status();
-    const char* statusMsg = (status == WL_NO_SSID_AVAIL) ? "SSID not found" :
-                            (status == WL_CONNECT_FAILED) ? "Connection failed" :
-                            (status == WL_CONNECTION_LOST) ? "Connection lost" :
-                            "Timeout";
-    addDebugf("WiFi connection failed: %s", statusMsg);
-    WiFi.disconnect(true);
-    return false;
-  }
-}
 
 static void startAPMode() {
   addDebugf("Starting AP mode: %s", apSSID.c_str());
   WiFi.mode(WIFI_AP);
   WiFi.softAP(apSSID.c_str(), apPassword.c_str());
   addDebugf("AP started: %s IP: %s", apSSID.c_str(), WiFi.softAPIP().toString().c_str());
-  wifiStationMode = false;
   
   // Start DNS server for captive portal
   dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
@@ -2137,22 +2080,15 @@ static inline void recordActivity(){ lastActivityMs = millis(); }
 static void wifiEnable(){
   if (wifiOn) return;
   
-  // Try station mode first if credentials exist (shorter timeout for re-enable)
-  bool connected = attemptWiFiConnection(wifiSSID, wifiPassword, WIFI_RECONNECT_TIMEOUT_MS);
-  if (!connected) {
-    startAPMode();
-  }
+  // Start AP mode
+  startAPMode();
   wifiOn = true;
   recordActivity();
 }
 static void wifiDisable(){
   if (!wifiOn) return;
-  if (wifiStationMode) {
-    WiFi.disconnect(true);
-  } else {
-    WiFi.softAPdisconnect(true);
-    dnsServer.stop();  // Stop DNS server when AP is disabled
-  }
+  WiFi.softAPdisconnect(true);
+  dnsServer.stop();  // Stop DNS server when AP is disabled
   WiFi.mode(WIFI_OFF);
   addDebug("Wi-Fi OFF");
   wifiOn = false;
@@ -2232,17 +2168,12 @@ static void sendStatusJSON(){
     doc["wifiIdleAutoOff"] = wifiIdleAutoOff;
 doc["activePreset"]   = activePreset;
   
-  // WiFi status information
-  doc["wifiStationMode"] = wifiStationMode;
-  doc["wifiSSID"] = wifiSSID;
-  doc["wifiConnected"] = (wifiStationMode && WiFi.status() == WL_CONNECTED);
-  if (wifiStationMode && WiFi.status() == WL_CONNECTED) {
-    doc["wifiIP"] = WiFi.localIP().toString();
-    doc["wifiHostname"] = "arc.local";
-  } else if (!wifiStationMode) {
-    doc["wifiIP"] = WiFi.softAPIP().toString();
-  }
+  // WiFi status information (AP mode only)
+  doc["wifiStationMode"] = false;
+  doc["wifiConnected"] = false;
+  doc["wifiIP"] = WiFi.softAPIP().toString();
   doc["apSSID"] = apSSID;
+  doc["apPassword"] = apPassword;  // Include password for persistence in UI
 
   const char* phaseName = nullptr;
   for (int zi=0; zi<3; ++zi){
@@ -2370,11 +2301,8 @@ delay(100);
   // Load WiFi credentials from preferences
   loadWiFiCredentials();
   
-  // Attempt to connect to home WiFi first, fallback to AP mode
-  bool connected = attemptWiFiConnection(wifiSSID, wifiPassword, WIFI_CONNECT_TIMEOUT_MS);
-  if (!connected) {
-    startAPMode();
-  }
+  // Start in AP mode only
+  startAPMode();
   recordActivity();
 
   loadPrefs();
@@ -2536,16 +2464,6 @@ server.on("/status",  HTTP_GET, [](){
     DeserializationError err = deserializeJson(doc, server.arg("plain"));
     if (err){ server.send(400,"text/plain","Bad JSON"); return; }
     
-    if (doc.containsKey("wifiSSID")) {
-      wifiSSID = doc["wifiSSID"].as<String>();
-      wifiSSID.trim();  // Remove leading/trailing whitespace
-      prefWriteString(PREF_WIFI_SSID, wifiSSID);
-    }
-    if (doc.containsKey("wifiPassword")) {
-      wifiPassword = doc["wifiPassword"].as<String>();
-      wifiPassword.trim();  // Remove leading/trailing whitespace
-      prefWriteString(PREF_WIFI_PASS, wifiPassword);
-    }
     if (doc.containsKey("apSSID")) {
       apSSID = doc["apSSID"].as<String>();
       apSSID.trim();
@@ -2567,49 +2485,6 @@ server.on("/status",  HTTP_GET, [](){
     server.send(200,"text/plain","WiFi settings saved. Restart to apply.");
   });
   
-  server.on("/wifiReconnect", HTTP_POST, [](){
-    recordActivity();
-    addDebug("Manual WiFi reconnect requested");
-    
-    // Disconnect current connection
-    if (wifiStationMode) {
-      WiFi.disconnect(true);
-    } else {
-      WiFi.softAPdisconnect(true);
-    }
-    
-    // Try station mode first with manual reconnect timeout
-    bool connected = attemptWiFiConnection(wifiSSID, wifiPassword, WIFI_MANUAL_RECONNECT_TIMEOUT_MS);
-    if (!connected) {
-      startAPMode();
-    }
-    
-    server.send(200,"text/plain","Reconnection attempted");
-  });
-  
-  // WiFi network scanner endpoint
-  server.on("/wifiScan", HTTP_GET, [](){
-    recordActivity();
-    addDebug("WiFi scan requested");
-    
-    int n = WiFi.scanNetworks();
-    StaticJsonDocument<2048> doc;
-    auto networks = doc["networks"].to<JsonArray>();
-    
-    for (int i = 0; i < n && i < 20; i++) {  // Limit to 20 networks
-      JsonObject net = networks.add<JsonObject>();
-      net["ssid"] = WiFi.SSID(i);
-      net["rssi"] = WiFi.RSSI(i);
-      net["secure"] = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
-    }
-    
-    WiFi.scanDelete();  // Free memory
-    String out;
-    serializeJson(doc, out);
-    server.send(200, "application/json", out);
-    addDebugf("WiFi scan complete: %d networks found", n);
-  });
-  
   
   // --- Debug: Read-only preset dump (v4c7b3) ---
   server.on("/presetDump", HTTP_GET, [](){
@@ -2625,15 +2500,11 @@ server.on("/status",  HTTP_GET, [](){
     server.send_P(200, "text/html; charset=utf-8", INDEX_HTML);
   });
   
-  // Captive portal: redirect all unknown requests to main page in AP mode
+  // Captive portal: redirect all unknown requests to main page
   server.onNotFound([](){
-    if (!wifiStationMode) {
-      // In AP mode, redirect to captive portal
-      server.sendHeader("Location", "http://" + WiFi.softAPIP().toString());
-      server.send(302, "text/plain", "");
-    } else {
-      server.send(404, "text/plain", "Not found");
-    }
+    // Always in AP mode, redirect to captive portal
+    server.sendHeader("Location", "http://" + WiFi.softAPIP().toString());
+    server.send(302, "text/plain", "");
   });
   
 server.begin();
@@ -2651,8 +2522,8 @@ static bool wifiOnCached = true; // mirror (avoid linker surprises)
 void loop(){
   server.handleClient();
   
-  // Process DNS requests for captive portal (AP mode only)
-  if (!wifiStationMode && wifiOn) {
+  // Process DNS requests for captive portal (always in AP mode)
+  if (wifiOn) {
     dnsServer.processNextRequest();
   }
   
