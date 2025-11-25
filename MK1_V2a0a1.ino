@@ -1008,22 +1008,16 @@ case E_WavePulse:{
         y = 1.0f;
       } else {
         uint32_t pm = phaseMs - bottomDwellMs - inhaleMs - topDwellMs;
-        float t = (float)pm / (float)exhaleMs;
-        // Apply stronger power curve (t^2.5) for deeper dimming on exhale
-        // This spends much more time at lower brightness values
-        y = 1.0f - (t * t * sqrtf(t));
+        y = 1.0f - (float)pm / (float)exhaleMs;
       }
 
-      // Direct brightness calculation: map y (0-1) to PWM range (FLOOR_PWM to 255)
-      // At y=0: v=FLOOR_PWM, at y=1: v=255
-      // Scale by intensity to allow user control
-      float intensityScale = (float)intensity / 255.0f;
-      int v = FLOOR_PWM + (int)((255 - FLOOR_PWM) * y * intensityScale + 0.5f);
-      if (v < FLOOR_PWM) v = FLOOR_PWM;
-      if (v > 255) v = 255;
-      
-      // White blend based on brightness level (more white at peak)
-      float mixF = 0.25f * y * y * intensityScale;
+      float a = 0.5f + ((float)intensity / 255.0f);
+      float vF = a * y;
+      int v = (int)(vF * 255.0f + 0.5f);
+      if (v < 0) v = 0; else if (v > 255) v = 255;
+
+            if (v < FLOOR_PWM) v = FLOOR_PWM;
+      float mixF = 0.25f * y * y * a;
       if (mixF < 0.0f) mixF = 0.0f; if (mixF > 0.40f) mixF = 0.40f;
       uint8_t mix = (uint8_t)(mixF * 255.0f + 0.5f);
 
