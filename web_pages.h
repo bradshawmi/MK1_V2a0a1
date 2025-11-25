@@ -620,14 +620,14 @@ function updateWifiIdleLabel(){
       statusEl.style.color = '#2196F3';
       ipEl.textContent = j.wifiIP || '192.168.4.1';
       
-      // Populate AP fields and persist password
+      // Populate AP fields only if empty (allows user editing without overwrite)
       if (j.apSSID !== undefined) {
         const apSsidEl = document.getElementById('apSSID');
         if (apSsidEl && !apSsidEl.value) apSsidEl.value = j.apSSID;
       }
       if (j.apPassword !== undefined) {
         const apPassEl = document.getElementById('apPassword');
-        if (apPassEl) apPassEl.value = j.apPassword; // Always update to persist password
+        if (apPassEl && !apPassEl.value) apPassEl.value = j.apPassword; // Only populate if empty
       }
     } catch(e) {}
   }
