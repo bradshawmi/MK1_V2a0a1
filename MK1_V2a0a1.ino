@@ -32,6 +32,7 @@ struct AuroraLayer {
 
 struct AuroraState {
   uint8_t  hueBase;
+  uint16_t hueFrac;      // Fractional hue accumulator (0-65535 maps to 0-1 hue unit)
   uint16_t pulsPhase;
   uint16_t zoneOffset;
   AuroraLayer layers[3];
@@ -1008,21 +1009,21 @@ case E_WavePulse:{
       } else {
         uint32_t pm = phaseMs - bottomDwellMs - inhaleMs - topDwellMs;
         float t = (float)pm / (float)exhaleMs;
-        // Apply power curve to exhale phase for deeper dimming (~50% more)
-        // Using t^1.5 makes the brightness drop faster, spending more time at lower values
-        y = 1.0f - (t * sqrtf(t));
+        // Apply stronger power curve (t^2.5) for deeper dimming on exhale
+        // This spends much more time at lower brightness values
+        y = 1.0f - (t * t * sqrtf(t));
       }
 
-      // Reduce amplitude factor to achieve ~50% deeper dimming
-      // Original: a = 0.5 + intensity/255 (range 0.5-1.5)
-      // New: a = 0.33 + 0.67*intensity/255 (range 0.33-1.0) - dims ~50% more at low end
-      float a = 0.33f + (0.67f * (float)intensity / 255.0f);
-      float vF = a * y;
-      int v = (int)(vF * 255.0f + 0.5f);
-      if (v < 0) v = 0; else if (v > 255) v = 255;
-
-            if (v < FLOOR_PWM) v = FLOOR_PWM;
-      float mixF = 0.25f * y * y * a;
+      // Direct brightness calculation: map y (0-1) to PWM range (FLOOR_PWM to 255)
+      // At y=0: v=FLOOR_PWM, at y=1: v=255
+      // Scale by intensity to allow user control
+      float intensityScale = (float)intensity / 255.0f;
+      int v = FLOOR_PWM + (int)((255 - FLOOR_PWM) * y * intensityScale + 0.5f);
+      if (v < FLOOR_PWM) v = FLOOR_PWM;
+      if (v > 255) v = 255;
+      
+      // White blend based on brightness level (more white at peak)
+      float mixF = 0.25f * y * y * intensityScale;
       if (mixF < 0.0f) mixF = 0.0f; if (mixF > 0.40f) mixF = 0.40f;
       uint8_t mix = (uint8_t)(mixF * 255.0f + 0.5f);
 
@@ -1122,6 +1123,7 @@ static inline void auroraEnsureInit(uint8_t z){
   if (A.lastMs) return;
   A.lastMs = millis();
   A.hueBase = 96;
+  A.hueFrac = 0;  // Initialize fractional hue accumulator
   A.zoneOffset = (uint16_t)(z * (65536u / 3u));
   A.seed = (uint16_t)(0xC0DEu + 97u*z);
   A.layers[0] = { (uint16_t)auroraRand(A.seed), (uint16_t)auroraRand(A.seed),  900 };
@@ -1136,26 +1138,35 @@ static inline void auroraUpdate(uint8_t z, uint16_t speed){
   uint32_t dt = now - A.lastMs;
   A.lastMs = now;
 
-  float hueRate = mapAuroraRate(0.03f, 0.60f, speed);
-  float pulsHz  = mapAuroraRate(0.10f, 0.40f, speed);
+  // Slower hue rate for gradual Northern Lights color transitions
+  // Reduced range from 0.03-0.60 to 0.008-0.15 for more nebulous shifts
+  float hueRate = mapAuroraRate(0.008f, 0.15f, speed);
+  float pulsHz  = mapAuroraRate(0.05f, 0.20f, speed);  // Slower pulse too
 
-  float hueAdd = hueRate * (float)dt * 0.001f;
-  uint8_t add8 = (uint8_t)(hueAdd + 0.5f);
-  A.hueBase += add8;
+  // Use 16-bit fractional accumulator for smooth sub-unit hue changes
+  // hueRate is in hue-units per second, convert to fractional units (65536 per hue unit)
+  float hueAddFrac = hueRate * (float)dt * 0.001f * 65536.0f;
+  uint32_t addFrac = (uint32_t)(hueAddFrac + 0.5f);
+  uint32_t newFrac = (uint32_t)A.hueFrac + addFrac;
+  // When fractional accumulator overflows 65536, increment hueBase by 1
+  A.hueBase += (uint8_t)(newFrac >> 16);
+  A.hueFrac = (uint16_t)(newFrac & 0xFFFF);
 
   uint32_t addP = (uint32_t)(pulsHz * (float)dt * 0.001f * 65536.0f + 0.5f);
   A.pulsPhase += (uint16_t)addP;
 
+  // Slower layer phase advancement for more gradual wave motion
   auto adv = [](uint16_t ph, float hz, uint32_t dtMs)->uint16_t{
     uint32_t add = (uint32_t)(hz * (float)dtMs * 0.001f * 65536.0f + 0.5f);
     return (uint16_t)(ph + add);
   };
-  float a0 = mapAuroraRate(0.020f, 0.120f, speed);
-  float b0 = mapAuroraRate(0.015f, 0.090f, speed);
-  float a1 = mapAuroraRate(0.018f, 0.105f, speed*0.95f);
-  float b1 = mapAuroraRate(0.013f, 0.085f, speed*0.90f);
-  float a2 = mapAuroraRate(0.024f, 0.140f, speed*1.05f);
-  float b2 = mapAuroraRate(0.020f, 0.110f, speed*1.02f);
+  // Reduced rates by ~60% for smoother, more gradual transitions
+  float a0 = mapAuroraRate(0.008f, 0.048f, speed);
+  float b0 = mapAuroraRate(0.006f, 0.036f, speed);
+  float a1 = mapAuroraRate(0.007f, 0.042f, speed*0.95f);
+  float b1 = mapAuroraRate(0.005f, 0.034f, speed*0.90f);
+  float a2 = mapAuroraRate(0.010f, 0.056f, speed*1.05f);
+  float b2 = mapAuroraRate(0.008f, 0.044f, speed*1.02f);
 
   A.layers[0].phaseA = adv(A.layers[0].phaseA, a0, dt);
   A.layers[0].phaseB = adv(A.layers[0].phaseB, b0, dt);
@@ -1164,9 +1175,10 @@ static inline void auroraUpdate(uint8_t z, uint16_t speed){
   A.layers[2].phaseA = adv(A.layers[2].phaseA, a2, dt);
   A.layers[2].phaseB = adv(A.layers[2].phaseB, b2, dt);
 
-  if ((auroraRand(A.seed) & 0x7FF) == 0){
+  // Less frequent width changes for more stable appearance
+  if ((auroraRand(A.seed) & 0xFFF) == 0){  // Changed from 0x7FF to 0xFFF (half as frequent)
     uint8_t k = (uint8_t)(A.seed % 3);
-    int d = (A.seed & 1) ? -90 : +90;
+    int d = (A.seed & 1) ? -45 : +45;  // Smaller changes (was ±90)
     int newW = (int)A.layers[k].width + d;
     if (newW < 560) newW = 560;
     if (newW > 1400) newW = 1400;
