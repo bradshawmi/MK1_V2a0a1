@@ -1007,10 +1007,16 @@ case E_WavePulse:{
         y = 1.0f;
       } else {
         uint32_t pm = phaseMs - bottomDwellMs - inhaleMs - topDwellMs;
-        y = 1.0f - (float)pm / (float)exhaleMs;
+        float t = (float)pm / (float)exhaleMs;
+        // Apply power curve to exhale phase for deeper dimming (~50% more)
+        // Using t^1.5 makes the brightness drop faster, spending more time at lower values
+        y = 1.0f - (t * sqrtf(t));
       }
 
-      float a = 0.5f + ((float)intensity / 255.0f);
+      // Reduce amplitude factor to achieve ~50% deeper dimming
+      // Original: a = 0.5 + intensity/255 (range 0.5-1.5)
+      // New: a = 0.33 + 0.67*intensity/255 (range 0.33-1.0) - dims ~50% more at low end
+      float a = 0.33f + (0.67f * (float)intensity / 255.0f);
       float vF = a * y;
       int v = (int)(vF * 255.0f + 0.5f);
       if (v < 0) v = 0; else if (v > 255) v = 255;
@@ -1172,11 +1178,24 @@ static inline CRGB auroraSample(uint8_t z, uint16_t iGlobal, uint8_t intensity){
   const Zone &Z = zones[z];
   const uint16_t first = (uint16_t)Z.startLed;
   const uint16_t iLocal = (uint16_t)(iGlobal - first);
+  const uint16_t zoneLen = (uint16_t)(Z.endLed - Z.startLed + 1);
   AuroraState &A = gAurora[z];
 
-  uint16_t p0 = (uint16_t)(A.layers[0].phaseA + (uint16_t)((uint32_t)A.layers[0].phaseB * 159u/256u) + A.zoneOffset + (uint16_t)(iLocal * A.layers[0].width));
-  uint16_t p1 = (uint16_t)(A.layers[1].phaseA + (uint16_t)((uint32_t)A.layers[1].phaseB * 171u/256u) + A.zoneOffset + (uint16_t)(iLocal * A.layers[1].width));
-  uint16_t p2 = (uint16_t)(A.layers[2].phaseA + (uint16_t)((uint32_t)A.layers[2].phaseB * 143u/256u) + A.zoneOffset + (uint16_t)(iLocal * A.layers[2].width));
+  // Ring-aware phase calculation: use angular position on the ring so LED 0 and LED (n-1) are adjacent.
+  // This ensures smooth wrapping for ring topologies (e.g., Zone 0 with 16 LEDs).
+  // phasePerLed gives the angular position in 0-65535 range (full circle), scaled by layer width factor.
+  auto ringPhase = [](uint16_t localIdx, uint16_t numLeds, uint16_t widthFactor)->uint16_t{
+    // widthFactor controls how many "waves" appear around the ring
+    // Using modular phase: (localIdx * 65536 / numLeds) gives position on ring
+    // Then multiply by (widthFactor / 1000) to control wave count
+    uint32_t basePhase = ((uint32_t)localIdx * 65536UL) / numLeds;
+    uint32_t scaledPhase = (basePhase * widthFactor) / 1000UL;
+    return (uint16_t)scaledPhase;
+  };
+
+  uint16_t p0 = (uint16_t)(A.layers[0].phaseA + (uint16_t)((uint32_t)A.layers[0].phaseB * 159u/256u) + A.zoneOffset + ringPhase(iLocal, zoneLen, A.layers[0].width));
+  uint16_t p1 = (uint16_t)(A.layers[1].phaseA + (uint16_t)((uint32_t)A.layers[1].phaseB * 171u/256u) + A.zoneOffset + ringPhase(iLocal, zoneLen, A.layers[1].width));
+  uint16_t p2 = (uint16_t)(A.layers[2].phaseA + (uint16_t)((uint32_t)A.layers[2].phaseB * 143u/256u) + A.zoneOffset + ringPhase(iLocal, zoneLen, A.layers[2].width));
 
   uint8_t a0 = curtainProfile(p0);
   uint8_t a1 = curtainProfile(p1);
@@ -1220,11 +1239,19 @@ static inline uint8_t auroraHolesMask(uint8_t z, uint16_t iGlobal){
   const Zone &Z = zones[z];
   const uint16_t first = (uint16_t)Z.startLed;
   const uint16_t iLocal = (uint16_t)(iGlobal - first);
+  const uint16_t zoneLen = (uint16_t)(Z.endLed - Z.startLed + 1);
   AuroraState &A = gAurora[z];
 
-  uint16_t p0 = (uint16_t)(A.layers[0].phaseA + (uint16_t)((uint32_t)A.layers[0].phaseB * 159u/256u) + A.zoneOffset + (uint16_t)(iLocal * A.layers[0].width));
-  uint16_t p1 = (uint16_t)(A.layers[1].phaseA + (uint16_t)((uint32_t)A.layers[1].phaseB * 171u/256u) + A.zoneOffset + (uint16_t)(iLocal * A.layers[1].width));
-  uint16_t p2 = (uint16_t)(A.layers[2].phaseA + (uint16_t)((uint32_t)A.layers[2].phaseB * 143u/256u) + A.zoneOffset + (uint16_t)(iLocal * A.layers[2].width));
+  // Ring-aware phase calculation (same as auroraSample)
+  auto ringPhase = [](uint16_t localIdx, uint16_t numLeds, uint16_t widthFactor)->uint16_t{
+    uint32_t basePhase = ((uint32_t)localIdx * 65536UL) / numLeds;
+    uint32_t scaledPhase = (basePhase * widthFactor) / 1000UL;
+    return (uint16_t)scaledPhase;
+  };
+
+  uint16_t p0 = (uint16_t)(A.layers[0].phaseA + (uint16_t)((uint32_t)A.layers[0].phaseB * 159u/256u) + A.zoneOffset + ringPhase(iLocal, zoneLen, A.layers[0].width));
+  uint16_t p1 = (uint16_t)(A.layers[1].phaseA + (uint16_t)((uint32_t)A.layers[1].phaseB * 171u/256u) + A.zoneOffset + ringPhase(iLocal, zoneLen, A.layers[1].width));
+  uint16_t p2 = (uint16_t)(A.layers[2].phaseA + (uint16_t)((uint32_t)A.layers[2].phaseB * 143u/256u) + A.zoneOffset + ringPhase(iLocal, zoneLen, A.layers[2].width));
 
   auto curtainProfile = [](uint16_t phase)->uint8_t{
     int16_t c = cos16(phase);
