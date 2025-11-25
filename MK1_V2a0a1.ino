@@ -1008,7 +1008,10 @@ case E_WavePulse:{
         y = 1.0f;
       } else {
         uint32_t pm = phaseMs - bottomDwellMs - inhaleMs - topDwellMs;
-        y = 1.0f - (float)pm / (float)exhaleMs;
+        float t = (float)pm / (float)exhaleMs;
+        // Apply power curve (t^1.5) to exhale: brightness drops faster initially,
+        // then lingers at lower values longer for more noticeable dimming
+        y = 1.0f - (t * sqrtf(t));
       }
 
       float a = 0.5f + ((float)intensity / 255.0f);
