@@ -1174,6 +1174,19 @@ static inline void auroraUpdate(uint8_t z, uint16_t speed){
   }
 }
 
+// Ring-aware phase calculation helper for Aurora effect.
+// Maps LED position to angular phase for smooth ring wrapping (LED 0 adjacent to LED n-1).
+static inline uint16_t auroraRingPhase(uint16_t localIdx, uint16_t numLeds, uint16_t widthFactor){
+  // Safeguard against division by zero
+  if (numLeds == 0) numLeds = 1;
+  // widthFactor controls how many "waves" appear around the ring
+  // Using modular phase: (localIdx * 65536 / numLeds) gives position on ring
+  // Then multiply by (widthFactor / 1000) to control wave count
+  uint32_t basePhase = ((uint32_t)localIdx * 65536UL) / numLeds;
+  uint32_t scaledPhase = (basePhase * widthFactor) / 1000UL;
+  return (uint16_t)scaledPhase;
+}
+
 static inline CRGB auroraSample(uint8_t z, uint16_t iGlobal, uint8_t intensity){
   const Zone &Z = zones[z];
   const uint16_t first = (uint16_t)Z.startLed;
@@ -1181,21 +1194,9 @@ static inline CRGB auroraSample(uint8_t z, uint16_t iGlobal, uint8_t intensity){
   const uint16_t zoneLen = (uint16_t)(Z.endLed - Z.startLed + 1);
   AuroraState &A = gAurora[z];
 
-  // Ring-aware phase calculation: use angular position on the ring so LED 0 and LED (n-1) are adjacent.
-  // This ensures smooth wrapping for ring topologies (e.g., Zone 0 with 16 LEDs).
-  // phasePerLed gives the angular position in 0-65535 range (full circle), scaled by layer width factor.
-  auto ringPhase = [](uint16_t localIdx, uint16_t numLeds, uint16_t widthFactor)->uint16_t{
-    // widthFactor controls how many "waves" appear around the ring
-    // Using modular phase: (localIdx * 65536 / numLeds) gives position on ring
-    // Then multiply by (widthFactor / 1000) to control wave count
-    uint32_t basePhase = ((uint32_t)localIdx * 65536UL) / numLeds;
-    uint32_t scaledPhase = (basePhase * widthFactor) / 1000UL;
-    return (uint16_t)scaledPhase;
-  };
-
-  uint16_t p0 = (uint16_t)(A.layers[0].phaseA + (uint16_t)((uint32_t)A.layers[0].phaseB * 159u/256u) + A.zoneOffset + ringPhase(iLocal, zoneLen, A.layers[0].width));
-  uint16_t p1 = (uint16_t)(A.layers[1].phaseA + (uint16_t)((uint32_t)A.layers[1].phaseB * 171u/256u) + A.zoneOffset + ringPhase(iLocal, zoneLen, A.layers[1].width));
-  uint16_t p2 = (uint16_t)(A.layers[2].phaseA + (uint16_t)((uint32_t)A.layers[2].phaseB * 143u/256u) + A.zoneOffset + ringPhase(iLocal, zoneLen, A.layers[2].width));
+  uint16_t p0 = (uint16_t)(A.layers[0].phaseA + (uint16_t)((uint32_t)A.layers[0].phaseB * 159u/256u) + A.zoneOffset + auroraRingPhase(iLocal, zoneLen, A.layers[0].width));
+  uint16_t p1 = (uint16_t)(A.layers[1].phaseA + (uint16_t)((uint32_t)A.layers[1].phaseB * 171u/256u) + A.zoneOffset + auroraRingPhase(iLocal, zoneLen, A.layers[1].width));
+  uint16_t p2 = (uint16_t)(A.layers[2].phaseA + (uint16_t)((uint32_t)A.layers[2].phaseB * 143u/256u) + A.zoneOffset + auroraRingPhase(iLocal, zoneLen, A.layers[2].width));
 
   uint8_t a0 = curtainProfile(p0);
   uint8_t a1 = curtainProfile(p1);
@@ -1242,16 +1243,9 @@ static inline uint8_t auroraHolesMask(uint8_t z, uint16_t iGlobal){
   const uint16_t zoneLen = (uint16_t)(Z.endLed - Z.startLed + 1);
   AuroraState &A = gAurora[z];
 
-  // Ring-aware phase calculation (same as auroraSample)
-  auto ringPhase = [](uint16_t localIdx, uint16_t numLeds, uint16_t widthFactor)->uint16_t{
-    uint32_t basePhase = ((uint32_t)localIdx * 65536UL) / numLeds;
-    uint32_t scaledPhase = (basePhase * widthFactor) / 1000UL;
-    return (uint16_t)scaledPhase;
-  };
-
-  uint16_t p0 = (uint16_t)(A.layers[0].phaseA + (uint16_t)((uint32_t)A.layers[0].phaseB * 159u/256u) + A.zoneOffset + ringPhase(iLocal, zoneLen, A.layers[0].width));
-  uint16_t p1 = (uint16_t)(A.layers[1].phaseA + (uint16_t)((uint32_t)A.layers[1].phaseB * 171u/256u) + A.zoneOffset + ringPhase(iLocal, zoneLen, A.layers[1].width));
-  uint16_t p2 = (uint16_t)(A.layers[2].phaseA + (uint16_t)((uint32_t)A.layers[2].phaseB * 143u/256u) + A.zoneOffset + ringPhase(iLocal, zoneLen, A.layers[2].width));
+  uint16_t p0 = (uint16_t)(A.layers[0].phaseA + (uint16_t)((uint32_t)A.layers[0].phaseB * 159u/256u) + A.zoneOffset + auroraRingPhase(iLocal, zoneLen, A.layers[0].width));
+  uint16_t p1 = (uint16_t)(A.layers[1].phaseA + (uint16_t)((uint32_t)A.layers[1].phaseB * 171u/256u) + A.zoneOffset + auroraRingPhase(iLocal, zoneLen, A.layers[1].width));
+  uint16_t p2 = (uint16_t)(A.layers[2].phaseA + (uint16_t)((uint32_t)A.layers[2].phaseB * 143u/256u) + A.zoneOffset + auroraRingPhase(iLocal, zoneLen, A.layers[2].width));
 
   auto curtainProfile = [](uint16_t phase)->uint8_t{
     int16_t c = cos16(phase);
