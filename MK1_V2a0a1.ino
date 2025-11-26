@@ -340,7 +340,6 @@ static inline void PP_applyPowerPulseOverlay(CRGB* leds, uint32_t nowMs){
 
 static void auroraUpdateAndOverlay();
 static void lightningUpdateAndOverlay();
-static void overloadUpdateAndOverlay();
 static const char s0[] PROGMEM = "";
 static const char s1[] PROGMEM = "text/plain";
 static const char s2[] PROGMEM = "range";
@@ -1418,72 +1417,6 @@ static void auroraUpdateAndOverlay() {
   }
 }
 
-static void overloadUpdateAndOverlay() {
-  bool useA = true;
-  const int zMain = pickOwnerForEffect(E_OverloadSurge, useA);
-  if (zMain < 0) return;
-
-  const Zone &Z   = zones[zMain];
-  const uint16_t speed = useA ? Z.speedA     : Z.speedB;
-  const uint8_t  inten = useA ? Z.intensityA : Z.intensityB;
-  const CRGB     tint  = useA ? Z.colorA     : Z.colorB;
-
-  if (inten == 0) return;
-
-  uint16_t sp = constrain(speed, 10, 1000);
-  uint16_t breathP = (uint16_t)constrain(
-      map((int)sp, 10, 1000, 8000, 2000),
-      2000, 8000);
-  uint16_t hueP = (uint16_t)constrain(
-      map((int)sp, 10, 1000, 12000, 4000),
-      4000, 12000);
-
-  uint32_t now = millis();
-  uint32_t breathMs = breathP ? (now % breathP) : 0;
-  uint32_t hueMs    = hueP    ? (now % hueP)    : 0;
-
-  uint8_t breathPhase = (uint8_t)((breathMs * 256UL) / breathP);
-  uint8_t huePhase    = (uint8_t)((hueMs * 256UL)    / hueP);
-
-  uint8_t breathWave = sin8(breathPhase);
-
-  CHSV baseHsv = rgb2hsv_approximate(tint);
-  uint8_t baseHue = baseHsv.h;
-  uint8_t baseSat = baseHsv.s;
-
-  const uint8_t minRange = 3;
-  const uint8_t maxRange = 14;
-  uint8_t hueRange = (uint8_t)(minRange +
-      ((uint16_t)(maxRange - minRange) * inten) / 255U);
-
-  uint8_t baseDimDepthMax = scale8(inten, 80);
-
-  uint8_t overlayFloor = scale8(inten, 10);
-  uint8_t overlayAmp   = inten;
-
-  for (uint16_t i = 0; i < NUM_LEDS; ++i) {
-    uint8_t pos   = (uint8_t)((i * 256U) / NUM_LEDS);
-    uint8_t angle = pos + huePhase;
-
-    uint8_t hueWave    = sin8(angle);
-    int16_t signedWave = (int16_t)hueWave - 128;
-    int16_t offset     = (signedWave * hueRange) / 128;
-    uint8_t hue        = baseHue + (int8_t)offset;
-
-    uint8_t dimAmt    = scale8((uint8_t)(255 - breathWave), baseDimDepthMax);
-    uint8_t scaleBase = 255 - dimAmt;
-    leds[i].nscale8_video(scaleBase);
-
-    uint8_t overlayVal = qadd8(overlayFloor, scale8(breathWave, overlayAmp));
-
-    CRGB halo;
-    hsv2rgb_rainbow(CHSV(hue, baseSat, overlayVal), halo);
-
-    leds[i].r = qadd8(leds[i].r, halo.r);
-    leds[i].g = qadd8(leds[i].g, halo.g);
-    leds[i].b = qadd8(leds[i].b, halo.b);
-  }
-}
 static const uint8_t LGTN_CAP  = 240;
 static const uint8_t LGTN_TINT = 90;
 
@@ -1952,7 +1885,6 @@ static void applyAllEffects(){
   }
 
   if (!autoDFActive) {
-    overloadUpdateAndOverlay();
     auroraUpdateAndOverlay();
   }
   // Apply HaloBreath global effect before Lightning so Lightning can overlay it
