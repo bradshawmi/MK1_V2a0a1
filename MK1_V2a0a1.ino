@@ -330,7 +330,7 @@ static inline void PP_applyPowerPulseOverlay(CRGB* leds, uint32_t nowMs){
 
 static void auroraUpdateAndOverlay();
 static void lightningUpdateAndOverlay();
-static void overloadUpdateAndOverlay();
+static void haloBreathUpdateAndOverlay();
 static const char s0[] PROGMEM = "";
 static const char s1[] PROGMEM = "text/plain";
 static const char s2[] PROGMEM = "range";
@@ -409,7 +409,7 @@ enum Effect : uint8_t {
   E_Candle,
   E_ArcFlicker,
   E_PowerPulse,
-  E_OverloadSurge,
+  E_HaloBreath,
   E_WavePulse,
   E_Lightning,
   E_Aurora
@@ -980,7 +980,7 @@ case E_ArcFlicker:{
 case E_PowerPulse:{
       return base;
     }
-case E_OverloadSurge:{
+case E_HaloBreath:{
       return base;
     }
     break;
@@ -1270,9 +1270,21 @@ static void auroraUpdateAndOverlay() {
   }
 }
 
-static void overloadUpdateAndOverlay() {
+// =============================================================================
+// HaloBreath Global Effect
+// =============================================================================
+// A global breathing overlay effect applied across all LEDs.
+// - Uses pickOwnerForEffect(E_HaloBreath, useA) to select owner zone & A/B slot
+// - Speed slider controls breathing period (3000-10000ms)
+// - Intensity slider controls:
+//   1) Breathing depth (contrast between inhale peak and exhale valley)
+//   2) Color variance around base hue (±4° at I=0 to ±10° at I=1)
+// - Color A/B from owner zone provides the base tint
+// - Overlay blends onto existing leds[] buffer
+// =============================================================================
+static void haloBreathUpdateAndOverlay() {
   bool useA = true;
-  const int zMain = pickOwnerForEffect(E_OverloadSurge, useA);
+  const int zMain = pickOwnerForEffect(E_HaloBreath, useA);
   if (zMain < 0) return;
 
   const Zone &Z   = zones[zMain];
@@ -1282,58 +1294,106 @@ static void overloadUpdateAndOverlay() {
 
   if (inten == 0) return;
 
+  // -------------------------------------------------------------------------
+  // Speed → Breathing Period
+  // -------------------------------------------------------------------------
+  // Map speed slider (10..1000) via sliderToPeriod to intermediate period,
+  // then scale to calmer breathing range: ~3000-10000ms.
+  // Faster slider values → shorter breathing period (faster breathing).
   uint16_t sp = constrain(speed, 10, 1000);
-  uint16_t breathP = (uint16_t)constrain(
-      map((int)sp, 10, 1000, 8000, 2000),
-      2000, 8000);
-  uint16_t hueP = (uint16_t)constrain(
-      map((int)sp, 10, 1000, 12000, 4000),
-      4000, 12000);
+  uint16_t intermediatePeriod = sliderToPeriod(sp);  // 4000..200 ms
+  // Map intermediate (200..4000) to breathing period (3000..10000)
+  // Lower intermediate (fast slider) → lower breathing period (faster breath)
+  uint16_t breathPeriodMs = (uint16_t)map((int)intermediatePeriod, 200, 4000, 3000, 10000);
+  breathPeriodMs = constrain(breathPeriodMs, 3000, 10000);
 
+  // -------------------------------------------------------------------------
+  // Breathing Phase Calculation (cosine-based)
+  // -------------------------------------------------------------------------
+  // Use cosine for smooth inhale/exhale cycle.
+  // b = (1 + cos(2π * t / period)) / 2  gives b ∈ [0,1]
+  // b=1 at phase=0 (inhale peak, brightest), b=0 at phase=π (exhale valley)
   uint32_t now = millis();
-  uint32_t breathMs = breathP ? (now % breathP) : 0;
-  uint32_t hueMs    = hueP    ? (now % hueP)    : 0;
+  uint32_t phaseMs = now % breathPeriodMs;
+  float phaseNorm = (float)phaseMs / (float)breathPeriodMs;  // 0..1
+  float cosVal = cosf(phaseNorm * 2.0f * 3.14159265f);       // -1..+1
+  float b = (1.0f + cosVal) / 2.0f;                          // 0..1 (breathing factor)
 
-  uint8_t breathPhase = (uint8_t)((breathMs * 256UL) / breathP);
-  uint8_t huePhase    = (uint8_t)((hueMs * 256UL)    / hueP);
+  // -------------------------------------------------------------------------
+  // Intensity → Breathing Depth (Brightness Contrast)
+  // -------------------------------------------------------------------------
+  // Intensity controls the contrast between inhale (bright) and exhale (dim).
+  // Peak brightness (B_max_frac) is fixed at 1.0.
+  // Exhale minimum (B_min_frac) varies with intensity:
+  //   - At intensity=0: B_min_frac ≈ 0.85 (subtle dimming)
+  //   - At intensity=255: B_min_frac ≈ 0.05 (very deep dimming)
+  float I = (float)inten / 255.0f;  // normalized intensity [0,1]
+  const float B_max_frac = 1.0f;
+  const float B_min_at_low_I = 0.85f;   // subtle dimming at I=0
+  const float B_min_at_high_I = 0.05f;  // deep dimming at I=1
+  float B_min_frac = B_min_at_low_I + (B_min_at_high_I - B_min_at_low_I) * I;
+  
+  // brightnessFrac smoothly interpolates between B_min and B_max based on b
+  float brightnessFrac = B_min_frac + (B_max_frac - B_min_frac) * b;
 
-  uint8_t breathWave = sin8(breathPhase);
+  // -------------------------------------------------------------------------
+  // Intensity → Color Variance (Hue Jitter)
+  // -------------------------------------------------------------------------
+  // The base color comes from owner zone's configured color (A or B).
+  // Intensity controls hue variance around the base:
+  //   - At I≈0: ±4 degrees
+  //   - At I≈1: ±10 degrees
+  // FastLED hue: 0-255 corresponds to 0-360°, so 1° ≈ 0.7083 hue units
+  const float HUE_UNITS_PER_DEG = 255.0f / 360.0f;
+  const float MIN_VARIANCE_DEG = 4.0f;
+  const float MAX_VARIANCE_DEG = 10.0f;
+  float varianceDeg = MIN_VARIANCE_DEG + (MAX_VARIANCE_DEG - MIN_VARIANCE_DEG) * I;
+  float varianceHueUnits = varianceDeg * HUE_UNITS_PER_DEG;
 
+  // Convert base tint to HSV
   CHSV baseHsv = rgb2hsv_approximate(tint);
   uint8_t baseHue = baseHsv.h;
   uint8_t baseSat = baseHsv.s;
 
-  const uint8_t minRange = 3;
-  const uint8_t maxRange = 14;
-  uint8_t hueRange = (uint8_t)(minRange +
-      ((uint16_t)(maxRange - minRange) * inten) / 255U);
-
-  uint8_t baseDimDepthMax = scale8(inten, 80);
-
-  uint8_t overlayFloor = scale8(inten, 10);
-  uint8_t overlayAmp   = inten;
-
+  // -------------------------------------------------------------------------
+  // Apply HaloBreath Overlay to All LEDs
+  // -------------------------------------------------------------------------
+  // For each LED:
+  // 1) Compute per-LED hue offset using stable pseudo-random based on LED index
+  // 2) Scale brightness by brightnessFrac
+  // 3) Blend overlay color onto existing leds[] content
+  
+  // Time bucket for slowly varying hue offsets (changes every ~2 seconds)
+  uint32_t timeBucket = now / 2000;
+  
   for (uint16_t i = 0; i < NUM_LEDS; ++i) {
-    uint8_t pos   = (uint8_t)((i * 256U) / NUM_LEDS);
-    uint8_t angle = pos + huePhase;
+    // Deterministic per-LED hue offset using position + slow time variation
+    // sin8 with seed from index and time bucket for smooth spatial variation
+    uint8_t seedVal = (uint8_t)(i * 37 + (timeBucket & 0xFF) * 13);
+    uint8_t offsetWave = sin8(seedVal);  // 0..255
+    int16_t signedOffset = (int16_t)offsetWave - 128;  // -128..+127
+    // Scale to variance range: [-varianceHueUnits, +varianceHueUnits]
+    int16_t hueOffset = (int16_t)((float)signedOffset * varianceHueUnits / 128.0f);
+    uint8_t finalHue = baseHue + (int8_t)hueOffset;
 
-    uint8_t hueWave    = sin8(angle);
-    int16_t signedWave = (int16_t)hueWave - 128;
-    int16_t offset     = (signedWave * hueRange) / 128;
-    uint8_t hue        = baseHue + (int8_t)offset;
+    // Compute overlay value (brightness) based on breathing phase
+    uint8_t overlayVal = (uint8_t)(brightnessFrac * 255.0f);
+    if (overlayVal > 255) overlayVal = 255;
 
-    uint8_t dimAmt    = scale8((uint8_t)(255 - breathWave), baseDimDepthMax);
-    uint8_t scaleBase = 255 - dimAmt;
-    leds[i].nscale8_video(scaleBase);
-
-    uint8_t overlayVal = qadd8(overlayFloor, scale8(breathWave, overlayAmp));
-
+    // Generate halo color
     CRGB halo;
-    hsv2rgb_rainbow(CHSV(hue, baseSat, overlayVal), halo);
+    hsv2rgb_rainbow(CHSV(finalHue, baseSat, overlayVal), halo);
 
-    leds[i].r = qadd8(leds[i].r, halo.r);
-    leds[i].g = qadd8(leds[i].g, halo.g);
-    leds[i].b = qadd8(leds[i].b, halo.b);
+    // Mild dimming of underlying content during exhale for depth effect
+    // Scale underlying LEDs by brightnessFrac (keeps peaks at full, dims valleys)
+    uint8_t dimScale = (uint8_t)(brightnessFrac * 255.0f);
+    if (dimScale < 40) dimScale = 40;  // floor to avoid complete blackout
+    leds[i].nscale8_video(dimScale);
+
+    // Blend overlay onto the dimmed base using additive blending
+    leds[i].r = qadd8(leds[i].r, scale8(halo.r, inten));
+    leds[i].g = qadd8(leds[i].g, scale8(halo.g, inten));
+    leds[i].b = qadd8(leds[i].b, scale8(halo.b, inten));
   }
 }
 static const uint8_t LGTN_CAP  = 240;
@@ -1804,7 +1864,7 @@ static void applyAllEffects(){
   }
 
   if (!autoDFActive) {
-    overloadUpdateAndOverlay();
+    haloBreathUpdateAndOverlay();
     auroraUpdateAndOverlay();
     lightningUpdateAndOverlay();
   }
