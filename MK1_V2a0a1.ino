@@ -500,22 +500,16 @@ static inline bool powerPulseAnyZoneSelected(){
 // Speed controls breathing rate
 
 static inline bool HB_pickOwner(CRGB &outColor, uint16_t &outSpeed, uint8_t &outIntensity) {
-  // Check all zones for HaloBreath effect
-  for (int z = 0; z < 3; ++z) {
-    if (zones[z].effectA == E_OverloadSurge) {
-      outColor = zones[z].colorA;
-      outSpeed = zones[z].speedA;
-      outIntensity = zones[z].intensityA;
-      return true;
-    }
-    if (zones[z].effectB == E_OverloadSurge) {
-      outColor = zones[z].colorB;
-      outSpeed = zones[z].speedB;
-      outIntensity = zones[z].intensityB;
-      return true;
-    }
-  }
-  return false;
+  // Use existing pickOwnerForEffect() for consistency with other effects
+  bool useA = true;
+  const int zMain = pickOwnerForEffect(E_OverloadSurge, useA);
+  if (zMain < 0) return false;
+  
+  const Zone &Z = zones[zMain];
+  outColor = useA ? Z.colorA : Z.colorB;
+  outSpeed = useA ? Z.speedA : Z.speedB;
+  outIntensity = useA ? Z.intensityA : Z.intensityB;
+  return true;
 }
 
 static inline bool HB_anyZoneSelected() {
