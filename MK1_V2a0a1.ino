@@ -1282,6 +1282,8 @@ static void auroraUpdateAndOverlay() {
 // - Color A/B from owner zone provides the base tint
 // - Overlay blends onto existing leds[] buffer
 // =============================================================================
+static const uint8_t HALO_MIN_DIM_SCALE = 40;  // Floor to avoid complete blackout
+
 static void haloBreathUpdateAndOverlay() {
   bool useA = true;
   const int zMain = pickOwnerForEffect(E_HaloBreath, useA);
@@ -1316,7 +1318,7 @@ static void haloBreathUpdateAndOverlay() {
   uint32_t now = millis();
   uint32_t phaseMs = now % breathPeriodMs;
   float phaseNorm = (float)phaseMs / (float)breathPeriodMs;  // 0..1
-  float cosVal = cosf(phaseNorm * 2.0f * 3.14159265f);       // -1..+1
+  float cosVal = cosf(phaseNorm * 2.0f * (float)M_PI);         // -1..+1
   float b = (1.0f + cosVal) / 2.0f;                          // 0..1 (breathing factor)
 
   // -------------------------------------------------------------------------
@@ -1378,7 +1380,6 @@ static void haloBreathUpdateAndOverlay() {
 
     // Compute overlay value (brightness) based on breathing phase
     uint8_t overlayVal = (uint8_t)(brightnessFrac * 255.0f);
-    if (overlayVal > 255) overlayVal = 255;
 
     // Generate halo color
     CRGB halo;
@@ -1387,7 +1388,7 @@ static void haloBreathUpdateAndOverlay() {
     // Mild dimming of underlying content during exhale for depth effect
     // Scale underlying LEDs by brightnessFrac (keeps peaks at full, dims valleys)
     uint8_t dimScale = (uint8_t)(brightnessFrac * 255.0f);
-    if (dimScale < 40) dimScale = 40;  // floor to avoid complete blackout
+    if (dimScale < HALO_MIN_DIM_SCALE) dimScale = HALO_MIN_DIM_SCALE;
     leds[i].nscale8_video(dimScale);
 
     // Blend overlay onto the dimmed base using additive blending
