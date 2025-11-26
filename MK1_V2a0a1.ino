@@ -19,7 +19,7 @@ static inline void auroraUpdate(uint8_t z, uint16_t speed);
 static inline CRGB auroraSample(uint8_t z, uint16_t iGlobal, uint8_t intensity);
 static inline uint8_t auroraHolesMask(uint8_t z, uint16_t iGlobal);
 
-static constexpr char BUILD_TAG[] = "v2a0c6";
+static constexpr char BUILD_TAG[] = "v2a0c7";
 
 enum DFPhase : uint8_t;
 struct DFState;
