@@ -595,25 +595,15 @@ static inline void HB_applyGlobalBreath(CRGB* leds, uint32_t nowMs) {
   
   // Time-based oscillation for continuous color variance
   // Use sine wave to oscillate hue offset smoothly over time
-  // Period: 3 seconds for full cycle (-1.0 to +1.0 and back)
+  // Period: 4 seconds for full cycle (-1.0 to +1.0 and back)
   float timeSeconds = (float)nowMs / 1000.0f;
-  float hueOscillation = sinf(timeSeconds * 2.094f);  // 2.094 rad/s ≈ 3 second period
+  float hueOscillation = sinf(timeSeconds * 1.5708f);  // π/2 rad/s = 4 second period
   
-  // Hue variance range constant for per-LED spatial variation
-  const uint16_t HUE_VARIANCE_RANGE = 200;
-  
-  // Apply global breathing to all LEDs with per-LED color variance
+  // Apply global breathing to all LEDs with synchronized color variance
   for (int i = 0; i < NUM_LEDS; i++) {
-    // Create per-LED spatial variance (static but different per LED)
-    uint16_t ledSeed = (uint16_t)(i * 1103);
-    float spatialOffset = (float)((int16_t)(ledSeed % HUE_VARIANCE_RANGE) - (HUE_VARIANCE_RANGE / 2)) / (float)(HUE_VARIANCE_RANGE / 2);  // -1.0 to +1.0
-    
-    // Combine temporal oscillation with spatial offset for natural variation
-    // Each LED oscillates around its unique spatial position
-    float combinedOffset = hueOscillation * 0.7f + spatialOffset * 0.3f;  // 70% temporal, 30% spatial
-    
+    // All LEDs oscillate together through the full ±range
     // Apply variance in degrees, then convert to hue units (0-255)
-    float hueShiftDeg = combinedOffset * hueVarianceDeg;
+    float hueShiftDeg = hueOscillation * hueVarianceDeg;
     float hueShiftUnits = hueShiftDeg * (255.0f / 360.0f);
     
     uint8_t ledHue = baseHSV.hue + (int16_t)hueShiftUnits;
