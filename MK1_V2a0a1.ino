@@ -338,137 +338,6 @@ static inline void PP_applyPowerPulseOverlay(CRGB* leds, uint32_t nowMs){
 
 #endif
 
-// === HaloBreath Global Effect Implementation ===
-// Redesigned breathing effect with intensity-controlled contrast and color variance
-// Intensity controls:
-//   - Exhale dimming depth (not peak brightness)
-//   - Color variance: low intensity ±4°, high intensity ±10°
-// Speed controls breathing rate
-
-static inline bool HB_pickOwner(CRGB &outColor, uint16_t &outSpeed, uint8_t &outIntensity) {
-  // Check all zones for HaloBreath effect
-  for (int z = 0; z < 3; ++z) {
-    if (zones[z].effectA == E_OverloadSurge) {
-      outColor = zones[z].colorA;
-      outSpeed = zones[z].speedA;
-      outIntensity = zones[z].intensityA;
-      return true;
-    }
-    if (zones[z].effectB == E_OverloadSurge) {
-      outColor = zones[z].colorB;
-      outSpeed = zones[z].speedB;
-      outIntensity = zones[z].intensityB;
-      return true;
-    }
-  }
-  return false;
-}
-
-static inline bool HB_anyZoneSelected() {
-  for (int z = 0; z < 3; ++z) {
-    if (zones[z].effectA == E_OverloadSurge || zones[z].effectB == E_OverloadSurge) {
-      return true;
-    }
-  }
-  return false;
-}
-
-static inline void HB_applyGlobalBreath(CRGB* leds, uint32_t nowMs) {
-  CRGB baseColor;
-  uint16_t speed;
-  uint8_t intensity;
-  
-  if (!HB_pickOwner(baseColor, speed, intensity)) {
-    return;
-  }
-
-  // Update parameters if changed
-  HB.baseColor = baseColor;
-  HB.speed = speed;
-  HB.intensity = intensity;
-  
-  // Map speed slider (10-1000) to breath period (12000ms-2000ms)
-  // Slower speed = longer period
-  HB.breathPeriodMs = (uint16_t)map(constrain(speed, 10, 1000), 10, 1000, 12000, 2000);
-  
-  uint32_t phaseMs = nowMs % HB.breathPeriodMs;
-  
-  // Breathing timing phases (similar to WavePulse but adapted)
-  const uint16_t inhaleMs = (uint16_t)(((uint32_t)HB.breathPeriodMs * 35) / 100);
-  const uint16_t topDwellMs = (uint16_t)max((uint32_t)50, ((uint32_t)HB.breathPeriodMs * 25UL) / 1000UL);
-  const uint16_t bottomDwellMs = (uint16_t)max((uint32_t)80, ((uint32_t)HB.breathPeriodMs * 50UL) / 1000UL);
-  uint16_t exhaleMs = (HB.breathPeriodMs > inhaleMs + topDwellMs + bottomDwellMs) 
-                      ? (HB.breathPeriodMs - inhaleMs - topDwellMs - bottomDwellMs) : 1;
-  
-  // Calculate breathing phase (0.0 = exhale valley, 1.0 = inhale peak)
-  float breathPhase;
-  if (phaseMs < bottomDwellMs) {
-    breathPhase = 0.0f;  // Bottom dwell (exhale valley)
-  } else if (phaseMs < bottomDwellMs + inhaleMs) {
-    uint32_t pm = phaseMs - bottomDwellMs;
-    float t = (float)pm / (float)inhaleMs;
-    // Smoothstep for natural breathing curve
-    breathPhase = t * t * (3.0f - 2.0f * t);
-  } else if (phaseMs < (uint32_t)bottomDwellMs + inhaleMs + topDwellMs) {
-    breathPhase = 1.0f;  // Top dwell (inhale peak)
-  } else {
-    uint32_t pm = phaseMs - bottomDwellMs - inhaleMs - topDwellMs;
-    float t = (float)pm / (float)exhaleMs;
-    // Smoothstep for exhale
-    float falloff = t * t * (3.0f - 2.0f * t);
-    breathPhase = 1.0f - falloff;
-  }
-  
-  // Intensity controls dimming depth on exhale
-  // Low intensity: subtle breathing (small difference between inhale/exhale)
-  // High intensity: pronounced breathing (large difference)
-  float intensityNorm = (float)intensity / 255.0f;
-  
-  // Peak brightness stays constant at 1.0
-  // Valley brightness varies based on intensity:
-  // - intensity 0: valley at 0.85 (subtle: 15% dimming)
-  // - intensity 255: valley at 0.15 (pronounced: 85% dimming)
-  float valleyBrightness = 0.85f - (intensityNorm * 0.70f);
-  float brightness = valleyBrightness + (breathPhase * (1.0f - valleyBrightness));
-  
-  // Color variance based on intensity
-  // Low intensity: ±4° hue variance
-  // High intensity: ±10° hue variance
-  float hueVarianceDeg = 4.0f + (intensityNorm * 6.0f);  // 4° to 10°
-  
-  // Convert base color to HSV
-  CHSV baseHSV = rgb2hsv_approximate(baseColor);
-  
-  // Pre-calculate time-based seed component (optimize loop performance)
-  uint16_t timeSeed = (uint16_t)((nowMs / 100) * 701);
-  
-  // Hue variance range constant: 200 gives -100 to +100 range for normalization
-  const uint16_t HUE_VARIANCE_RANGE = 200;
-  
-  // Apply global breathing to all LEDs with per-LED color variance
-  for (int i = 0; i < NUM_LEDS; i++) {
-    // Create per-LED hue variance using deterministic pseudo-random
-    uint16_t ledSeed = (uint16_t)(i * 1103 + timeSeed);
-    float hueOffset = (float)((int16_t)(ledSeed % HUE_VARIANCE_RANGE) - (HUE_VARIANCE_RANGE / 2)) / (float)(HUE_VARIANCE_RANGE / 2);  // -1.0 to +1.0
-    
-    // Apply variance in degrees, then convert to hue units (0-255)
-    float hueShiftDeg = hueOffset * hueVarianceDeg;
-    float hueShiftUnits = hueShiftDeg * (255.0f / 360.0f);
-    
-    uint8_t ledHue = baseHSV.hue + (int16_t)hueShiftUnits;
-    
-    // Create the breathing color for this LED
-    CRGB breathColor;
-    hsv2rgb_rainbow(CHSV(ledHue, baseHSV.sat, baseHSV.val), breathColor);
-    
-    // Apply breathing brightness
-    breathColor.nscale8_video((uint8_t)(brightness * 255.0f));
-    
-    // Direct assignment (replaces existing LED color as global effect)
-    leds[i] = breathColor;
-  }
-}
-
 static void auroraUpdateAndOverlay();
 static void lightningUpdateAndOverlay();
 static void overloadUpdateAndOverlay();
@@ -622,6 +491,137 @@ static inline bool powerPulseAnyZoneSelected(){
     if (zones[z].effectA == E_PowerPulse || zones[z].effectB == E_PowerPulse) return true;
   }
   return false;
+}
+
+// === HaloBreath Global Effect Implementation ===
+// Redesigned breathing effect with intensity-controlled contrast and color variance
+// Intensity controls:
+//   - Exhale dimming depth (not peak brightness)
+//   - Color variance: low intensity ±4°, high intensity ±10°
+// Speed controls breathing rate
+
+static inline bool HB_pickOwner(CRGB &outColor, uint16_t &outSpeed, uint8_t &outIntensity) {
+  // Check all zones for HaloBreath effect
+  for (int z = 0; z < 3; ++z) {
+    if (zones[z].effectA == E_OverloadSurge) {
+      outColor = zones[z].colorA;
+      outSpeed = zones[z].speedA;
+      outIntensity = zones[z].intensityA;
+      return true;
+    }
+    if (zones[z].effectB == E_OverloadSurge) {
+      outColor = zones[z].colorB;
+      outSpeed = zones[z].speedB;
+      outIntensity = zones[z].intensityB;
+      return true;
+    }
+  }
+  return false;
+}
+
+static inline bool HB_anyZoneSelected() {
+  for (int z = 0; z < 3; ++z) {
+    if (zones[z].effectA == E_OverloadSurge || zones[z].effectB == E_OverloadSurge) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static inline void HB_applyGlobalBreath(CRGB* leds, uint32_t nowMs) {
+  CRGB baseColor;
+  uint16_t speed;
+  uint8_t intensity;
+  
+  if (!HB_pickOwner(baseColor, speed, intensity)) {
+    return;
+  }
+
+  // Update parameters if changed
+  HB.baseColor = baseColor;
+  HB.speed = speed;
+  HB.intensity = intensity;
+  
+  // Map speed slider (10-1000) to breath period (12000ms-2000ms)
+  // Slower speed = longer period
+  HB.breathPeriodMs = (uint16_t)map(constrain(speed, 10, 1000), 10, 1000, 12000, 2000);
+  
+  uint32_t phaseMs = nowMs % HB.breathPeriodMs;
+  
+  // Breathing timing phases (similar to WavePulse but adapted)
+  const uint16_t inhaleMs = (uint16_t)(((uint32_t)HB.breathPeriodMs * 35) / 100);
+  const uint16_t topDwellMs = (uint16_t)max((uint32_t)50, ((uint32_t)HB.breathPeriodMs * 25UL) / 1000UL);
+  const uint16_t bottomDwellMs = (uint16_t)max((uint32_t)80, ((uint32_t)HB.breathPeriodMs * 50UL) / 1000UL);
+  uint16_t exhaleMs = (HB.breathPeriodMs > inhaleMs + topDwellMs + bottomDwellMs) 
+                      ? (HB.breathPeriodMs - inhaleMs - topDwellMs - bottomDwellMs) : 1;
+  
+  // Calculate breathing phase (0.0 = exhale valley, 1.0 = inhale peak)
+  float breathPhase;
+  if (phaseMs < bottomDwellMs) {
+    breathPhase = 0.0f;  // Bottom dwell (exhale valley)
+  } else if (phaseMs < bottomDwellMs + inhaleMs) {
+    uint32_t pm = phaseMs - bottomDwellMs;
+    float t = (float)pm / (float)inhaleMs;
+    // Smoothstep for natural breathing curve
+    breathPhase = t * t * (3.0f - 2.0f * t);
+  } else if (phaseMs < (uint32_t)bottomDwellMs + inhaleMs + topDwellMs) {
+    breathPhase = 1.0f;  // Top dwell (inhale peak)
+  } else {
+    uint32_t pm = phaseMs - bottomDwellMs - inhaleMs - topDwellMs;
+    float t = (float)pm / (float)exhaleMs;
+    // Smoothstep for exhale
+    float falloff = t * t * (3.0f - 2.0f * t);
+    breathPhase = 1.0f - falloff;
+  }
+  
+  // Intensity controls dimming depth on exhale
+  // Low intensity: subtle breathing (small difference between inhale/exhale)
+  // High intensity: pronounced breathing (large difference)
+  float intensityNorm = (float)intensity / 255.0f;
+  
+  // Peak brightness stays constant at 1.0
+  // Valley brightness varies based on intensity:
+  // - intensity 0: valley at 0.85 (subtle: 15% dimming)
+  // - intensity 255: valley at 0.15 (pronounced: 85% dimming)
+  float valleyBrightness = 0.85f - (intensityNorm * 0.70f);
+  float brightness = valleyBrightness + (breathPhase * (1.0f - valleyBrightness));
+  
+  // Color variance based on intensity
+  // Low intensity: ±4° hue variance
+  // High intensity: ±10° hue variance
+  float hueVarianceDeg = 4.0f + (intensityNorm * 6.0f);  // 4° to 10°
+  
+  // Convert base color to HSV
+  CHSV baseHSV = rgb2hsv_approximate(baseColor);
+  
+  // Pre-calculate time-based seed component (optimize loop performance)
+  uint16_t timeSeed = (uint16_t)((nowMs / 100) * 701);
+  
+  // Hue variance range constant: 200 gives -100 to +100 range for normalization
+  const uint16_t HUE_VARIANCE_RANGE = 200;
+  
+  // Apply global breathing to all LEDs with per-LED color variance
+  for (int i = 0; i < NUM_LEDS; i++) {
+    // Create per-LED hue variance using deterministic pseudo-random
+    uint16_t ledSeed = (uint16_t)(i * 1103 + timeSeed);
+    float hueOffset = (float)((int16_t)(ledSeed % HUE_VARIANCE_RANGE) - (HUE_VARIANCE_RANGE / 2)) / (float)(HUE_VARIANCE_RANGE / 2);  // -1.0 to +1.0
+    
+    // Apply variance in degrees, then convert to hue units (0-255)
+    float hueShiftDeg = hueOffset * hueVarianceDeg;
+    float hueShiftUnits = hueShiftDeg * (255.0f / 360.0f);
+    
+    uint8_t ledHue = baseHSV.hue + (int16_t)hueShiftUnits;
+    
+    // Create the breathing color for this LED
+    CRGB breathColor;
+    hsv2rgb_rainbow(CHSV(ledHue, baseHSV.sat, baseHSV.val), breathColor);
+    
+    // Apply breathing brightness
+    breathColor.nscale8_video((uint8_t)(brightness * 255.0f));
+    
+    // Direct assignment (replaces existing LED color as global effect)
+    leds[i] = breathColor;
+  }
 }
 
 static uint8_t masterBrightness = 128;
