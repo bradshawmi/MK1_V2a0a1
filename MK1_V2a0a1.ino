@@ -1014,13 +1014,24 @@ case E_WavePulse:{
         y = 1.0f - (t * sqrtf(t));
       }
 
-      float a = 0.5f + ((float)intensity / 255.0f);
-      float vF = a * y;
-      int v = (int)(vF * 255.0f + 0.5f);
-      if (v < 0) v = 0; else if (v > 255) v = 255;
+      // Intensity controls breathing contrast by adjusting the dimming depth
+      // Peak brightness stays at 255, valley varies based on intensity:
+      // - Low intensity (0): subtle breathing, valley stays high (~200)
+      // - High intensity (255): pronounced breathing, valley drops to floor (7)
+      float intensityNorm = (float)intensity / 255.0f;
+      
+      // Map y (0-1) to brightness range where valley depends on intensity
+      // At y=1 (peak): always 255
+      // At y=0 (valley): ranges from ~200 (low intensity) to FLOOR_PWM (high intensity)
+      float valleyBrightness = (1.0f - intensityNorm) * 200.0f + intensityNorm * (float)FLOOR_PWM;
+      float peakBrightness = 255.0f;
+      
+      int v = (int)(valleyBrightness + y * (peakBrightness - valleyBrightness) + 0.5f);
+      if (v < FLOOR_PWM) v = FLOOR_PWM;
+      if (v > 255) v = 255;
 
-            if (v < FLOOR_PWM) v = FLOOR_PWM;
-      float mixF = 0.25f * y * y * a;
+      // White blend based on breathing phase (more white at peak)
+      float mixF = 0.25f * y * y * intensityNorm;
       if (mixF < 0.0f) mixF = 0.0f; if (mixF > 0.40f) mixF = 0.40f;
       uint8_t mix = (uint8_t)(mixF * 255.0f + 0.5f);
 
