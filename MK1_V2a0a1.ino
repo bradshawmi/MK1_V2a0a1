@@ -389,8 +389,7 @@ static inline void HB_applyGlobalBreath(CRGB* leds, uint32_t nowMs) {
   
   // Map speed slider (10-1000) to breath period (12000ms-2000ms)
   // Slower speed = longer period
-  speed = constrain(speed, 10, 1000);
-  HB.breathPeriodMs = (uint16_t)map((int)speed, 10, 1000, 12000, 2000);
+  HB.breathPeriodMs = (uint16_t)map(constrain(speed, 10, 1000), 10, 1000, 12000, 2000);
   
   uint32_t phaseMs = nowMs % HB.breathPeriodMs;
   
@@ -440,11 +439,17 @@ static inline void HB_applyGlobalBreath(CRGB* leds, uint32_t nowMs) {
   // Convert base color to HSV
   CHSV baseHSV = rgb2hsv_approximate(baseColor);
   
+  // Pre-calculate time-based seed component (optimize loop performance)
+  uint16_t timeSeed = (uint16_t)((nowMs / 100) * 701);
+  
+  // Hue variance range constant: 200 gives -100 to +100 range for normalization
+  const uint16_t HUE_VARIANCE_RANGE = 200;
+  
   // Apply global breathing to all LEDs with per-LED color variance
   for (int i = 0; i < NUM_LEDS; i++) {
     // Create per-LED hue variance using deterministic pseudo-random
-    uint16_t ledSeed = (uint16_t)(i * 1103 + (nowMs / 100) * 701);
-    float hueOffset = (float)((int16_t)(ledSeed % 200) - 100) / 100.0f;  // -1.0 to +1.0
+    uint16_t ledSeed = (uint16_t)(i * 1103 + timeSeed);
+    float hueOffset = (float)((int16_t)(ledSeed % HUE_VARIANCE_RANGE) - (HUE_VARIANCE_RANGE / 2)) / (float)(HUE_VARIANCE_RANGE / 2);  // -1.0 to +1.0
     
     // Apply variance in degrees, then convert to hue units (0-255)
     float hueShiftDeg = hueOffset * hueVarianceDeg;
@@ -459,7 +464,7 @@ static inline void HB_applyGlobalBreath(CRGB* leds, uint32_t nowMs) {
     // Apply breathing brightness
     breathColor.nscale8_video((uint8_t)(brightness * 255.0f));
     
-    // Blend with existing LED color (additive overlay)
+    // Direct assignment (replaces existing LED color as global effect)
     leds[i] = breathColor;
   }
 }
