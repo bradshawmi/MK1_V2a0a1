@@ -587,24 +587,15 @@ static inline void HB_applyGlobalBreath(CRGB* leds, uint32_t nowMs) {
   // Convert base color to HSV
   CHSV baseHSV = rgb2hsv_approximate(baseColor);
   
-  // Time-based oscillation for continuous color variance
-  // Use sine wave to oscillate hue offset smoothly over time
-  // Period: 5 seconds for full cycle (slower for more visible effect)
-  float timeSeconds = (float)nowMs / 1000.0f;
-  float globalHueOscillation = sinf(timeSeconds * 1.2566f);  // 2π/5 rad/s = 5 second period
+  // Synchronize color oscillation with breathing cycle for more obvious effect
+  // Use breathPhase (0.0 to 1.0) and convert to oscillation (-1.0 to +1.0)
+  // When breathing in (phase 0→1), cycle through full color range
+  float colorOscillation = sinf(breathPhase * 6.2832f);  // sin(phase * 2π)
   
   // Apply global breathing to all LEDs with synchronized color variance
   for (int i = 0; i < NUM_LEDS; i++) {
-    // Add per-LED spatial variation similar to Aurora for more natural look
-    // Each LED gets a slight phase offset based on its position
-    uint16_t ledPhase = (uint16_t)(i * 65536 / NUM_LEDS);  // 0 to 65535
-    float ledOffset = sinf((float)ledPhase * 0.000095873f);  // sin(ledPhase * 2π/65536)
-    
-    // Combine global oscillation (80%) with per-LED variation (20%)
-    float combinedOscillation = globalHueOscillation * 0.8f + ledOffset * 0.2f;
-    
     // Apply variance in degrees, then convert to hue units (0-255)
-    float hueShiftDeg = combinedOscillation * hueVarianceDeg;
+    float hueShiftDeg = colorOscillation * hueVarianceDeg;
     float hueShiftUnits = hueShiftDeg * (255.0f / 360.0f);
     
     uint8_t ledHue = baseHSV.hue + (int16_t)hueShiftUnits;
