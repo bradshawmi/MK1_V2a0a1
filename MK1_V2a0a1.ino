@@ -19,7 +19,7 @@ static inline void auroraUpdate(uint8_t z, uint16_t speed);
 static inline CRGB auroraSample(uint8_t z, uint16_t iGlobal, uint8_t intensity);
 static inline uint8_t auroraHolesMask(uint8_t z, uint16_t iGlobal);
 
-static constexpr char BUILD_TAG[] = "v2a0c6";
+static constexpr char BUILD_TAG[] = "v2a0d0";
 
 enum DFPhase : uint8_t;
 struct DFState;
@@ -1282,7 +1282,7 @@ static void auroraUpdateAndOverlay() {
 // - Color A/B from owner zone provides the base tint
 // - Overlay blends onto existing leds[] buffer
 // =============================================================================
-static const uint8_t HALO_MIN_DIM_SCALE = 40;  // Floor to avoid complete blackout
+static const uint8_t HALO_MIN_DIM_SCALE = 5;  // Floor to avoid complete blackout
 
 static void haloBreathUpdateAndOverlay() {
   bool useA = true;
@@ -1300,14 +1300,14 @@ static void haloBreathUpdateAndOverlay() {
   // Speed → Breathing Period
   // -------------------------------------------------------------------------
   // Map speed slider (10..1000) via sliderToPeriod to intermediate period,
-  // then scale to calmer breathing range: ~3000-10000ms.
+  // then scale to calmer breathing range: ~3000-7000ms.
   // Faster slider values → shorter breathing period (faster breathing).
   uint16_t sp = constrain(speed, 10, 1000);
   uint16_t intermediatePeriod = sliderToPeriod(sp);  // 4000..200 ms
   // Map intermediate (200..4000) to breathing period (3000..10000)
   // Lower intermediate (fast slider) → lower breathing period (faster breath)
   uint16_t breathPeriodMs = (uint16_t)map((int)intermediatePeriod, 200, 4000, 3000, 10000);
-  breathPeriodMs = constrain(breathPeriodMs, 3000, 10000);
+  breathPeriodMs = constrain(breathPeriodMs, 3000, 7000);
 
   // -------------------------------------------------------------------------
   // Breathing Phase Calculation (cosine-based)
@@ -1327,12 +1327,12 @@ static void haloBreathUpdateAndOverlay() {
   // Intensity controls the contrast between inhale (bright) and exhale (dim).
   // Peak brightness (B_max_frac) is fixed at 1.0.
   // Exhale minimum (B_min_frac) varies with intensity:
-  //   - At intensity=0: B_min_frac ≈ 0.85 (subtle dimming)
-  //   - At intensity=255: B_min_frac ≈ 0.15 (deep dimming for visible breathing)
+  //   - At intensity=0: B_min_frac ≈ 0.25 (subtle dimming)
+  //   - At intensity=255: B_min_frac ≈ 0.05 (deep dimming for visible breathing)
   float I = (float)inten / 255.0f;  // normalized intensity [0,1]
   const float B_max_frac = 1.0f;
-  const float B_min_at_low_I = 0.85f;   // subtle dimming at I=0
-  const float B_min_at_high_I = 0.15f;  // deep dimming at I=1 for visible breathing
+  const float B_min_at_low_I = 0.25f;   // subtle dimming at I=0
+  const float B_min_at_high_I = 0.05f;  // deep dimming at I=1 for visible breathing
   float B_min_frac = B_min_at_low_I + (B_min_at_high_I - B_min_at_low_I) * I;
   
   // brightnessFrac smoothly interpolates between B_min and B_max based on b
@@ -1343,12 +1343,12 @@ static void haloBreathUpdateAndOverlay() {
   // -------------------------------------------------------------------------
   // The base color comes from owner zone's configured color (A or B).
   // Intensity controls hue variance around the base:
-  //   - At I≈0: ±30 degrees
-  //   - At I≈1: ±50 degrees
+  //   - At I≈0: ±15 degrees
+  //   - At I≈1: ±25 degrees
   // FastLED hue: 0-255 corresponds to 0-360°, so 1° ≈ 0.7083 hue units
   const float HUE_UNITS_PER_DEG = 255.0f / 360.0f;
-  const float MIN_VARIANCE_DEG = 30.0f;
-  const float MAX_VARIANCE_DEG = 50.0f;
+  const float MIN_VARIANCE_DEG = 15.0f;
+  const float MAX_VARIANCE_DEG = 25.0f;
   float varianceDeg = MIN_VARIANCE_DEG + (MAX_VARIANCE_DEG - MIN_VARIANCE_DEG) * I;
   float varianceHueUnits = varianceDeg * HUE_UNITS_PER_DEG;
 
@@ -1365,8 +1365,8 @@ static void haloBreathUpdateAndOverlay() {
   // 2) Scale brightness by brightnessFrac
   // 3) Blend overlay color onto existing leds[] content
   
-  // Time bucket for slowly varying hue offsets (changes every ~2 seconds)
-  uint32_t timeBucket = now / 2000;
+  // Time bucket for slowly varying hue offsets (changes every ~.5 seconds)
+  uint32_t timeBucket = now / 500;
   
   for (uint16_t i = 0; i < NUM_LEDS; ++i) {
     // Deterministic per-LED hue offset using position + slow time variation
