@@ -1328,11 +1328,11 @@ static void haloBreathUpdateAndOverlay() {
   // Peak brightness (B_max_frac) is fixed at 1.0.
   // Exhale minimum (B_min_frac) varies with intensity:
   //   - At intensity=0: B_min_frac ≈ 0.85 (subtle dimming)
-  //   - At intensity=255: B_min_frac ≈ 0.05 (very deep dimming)
+  //   - At intensity=255: B_min_frac ≈ 0.45 (moderate dimming)
   float I = (float)inten / 255.0f;  // normalized intensity [0,1]
   const float B_max_frac = 1.0f;
   const float B_min_at_low_I = 0.85f;   // subtle dimming at I=0
-  const float B_min_at_high_I = 0.05f;  // deep dimming at I=1
+  const float B_min_at_high_I = 0.45f;  // moderate dimming at I=1
   float B_min_frac = B_min_at_low_I + (B_min_at_high_I - B_min_at_low_I) * I;
   
   // brightnessFrac smoothly interpolates between B_min and B_max based on b
@@ -1343,12 +1343,12 @@ static void haloBreathUpdateAndOverlay() {
   // -------------------------------------------------------------------------
   // The base color comes from owner zone's configured color (A or B).
   // Intensity controls hue variance around the base:
-  //   - At I≈0: ±4 degrees
-  //   - At I≈1: ±10 degrees
+  //   - At I≈0: ±10 degrees
+  //   - At I≈1: ±30 degrees
   // FastLED hue: 0-255 corresponds to 0-360°, so 1° ≈ 0.7083 hue units
   const float HUE_UNITS_PER_DEG = 255.0f / 360.0f;
-  const float MIN_VARIANCE_DEG = 4.0f;
-  const float MAX_VARIANCE_DEG = 10.0f;
+  const float MIN_VARIANCE_DEG = 10.0f;
+  const float MAX_VARIANCE_DEG = 30.0f;
   float varianceDeg = MIN_VARIANCE_DEG + (MAX_VARIANCE_DEG - MIN_VARIANCE_DEG) * I;
   float varianceHueUnits = varianceDeg * HUE_UNITS_PER_DEG;
 
