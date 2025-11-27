@@ -1275,10 +1275,10 @@ static void auroraUpdateAndOverlay() {
 // =============================================================================
 // A global breathing overlay effect applied across all LEDs.
 // - Uses pickOwnerForEffect(E_HaloBreath, useA) to select owner zone & A/B slot
-// - Speed slider controls breathing period (3000-10000ms)
+// - Speed slider controls breathing period (3000-7000ms)
 // - Intensity slider controls:
 //   1) Breathing depth (contrast between inhale peak and exhale valley)
-//   2) Color variance around base hue (±4° at I=0 to ±10° at I=1)
+//   2) Color variance around base hue (±15° at I=0 to ±25° at I=1)
 // - Color A/B from owner zone provides the base tint
 // - Overlay blends onto existing leds[] buffer
 // =============================================================================
@@ -1304,7 +1304,7 @@ static void haloBreathUpdateAndOverlay() {
   // Faster slider values → shorter breathing period (faster breathing).
   uint16_t sp = constrain(speed, 10, 1000);
   uint16_t intermediatePeriod = sliderToPeriod(sp);  // 4000..200 ms
-  // Map intermediate (200..4000) to breathing period (3000..10000)
+  // Map intermediate (200..4000) to breathing period (3000..7000)
   // Lower intermediate (fast slider) → lower breathing period (faster breath)
   uint16_t breathPeriodMs = (uint16_t)map((int)intermediatePeriod, 200, 4000, 3000, 10000);
   breathPeriodMs = constrain(breathPeriodMs, 3000, 7000);
