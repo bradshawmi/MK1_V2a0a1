@@ -63,9 +63,13 @@ struct RingCoord {
 
 static AuroraState gAurora[3] = {0};
 
-// Aurora temporal smoothing constant
-// Exponential smoothing factor: lower = slower/smoother transitions (0.05-0.15 recommended)
-static const float AURORA_SMOOTH_FACTOR = 0.08f;
+// Aurora temporal smoothing constants
+// Exponential smoothing factor: lower = slower/smoother transitions
+// Reduced from 0.08 to 0.03 for more gradual, nebulous aurora transitions
+static const float AURORA_SMOOTH_FACTOR = 0.03f;
+// Ring edge blend amount: blends LED 0 and LED 15 which are adjacent on the physical ring
+// Value of 64 = 25% blend to reduce visible seam without losing all variation
+static const uint8_t AURORA_RING_BLEND_AMT = 64;
 
 #include <Arduino.h>
 #include <pgmspace.h>
@@ -1184,8 +1188,9 @@ static inline void auroraUpdate(uint8_t z, uint16_t speed){
   }
 
   // Smoothly interpolate current widths toward target widths
-  // Width interpolation factor (~0.02 for slow, smooth width changes)
-  const float WIDTH_LERP_FACTOR = 0.02f;
+  // Width interpolation factor: lower = slower width changes for smoother aurora
+  // Reduced from 0.02 to 0.008 for more gradual curtain width transitions
+  const float WIDTH_LERP_FACTOR = 0.008f;
   for (uint8_t k = 0; k < 3; ++k) {
     int16_t diff = (int16_t)A.layers[k].targetWidth - (int16_t)A.layers[k].width;
     int16_t step = (int16_t)(diff * WIDTH_LERP_FACTOR);
@@ -1211,7 +1216,8 @@ static inline CRGB auroraSample(uint8_t z, uint16_t iGlobal, uint8_t intensity){
 
   uint8_t mx = max(a0, max(a1, a2));
 
-  const float holeStrength = 0.70f;
+  // Reduced hole strength for less drastic dark areas (more gentle shadows)
+  const float holeStrength = 0.45f;
   uint16_t hole = (uint16_t)((255 - a0) * (255 - a1) / 255);
   hole = (uint16_t)(hole * (255 - a2) / 255);
   uint8_t holes = (uint8_t)(255 - (uint16_t)(hole * holeStrength / 1.0f));
@@ -1223,8 +1229,9 @@ static inline CRGB auroraSample(uint8_t z, uint16_t iGlobal, uint8_t intensity){
   uint8_t v = (uint8_t)constrain( (int)( (uint16_t)baseV * holes / 255 ), 0, 255 );
   uint8_t overlap = (uint8_t)(( (uint16_t)min(a0,a1) + (uint16_t)min(a1,a2) + (uint16_t)min(a0,a2) ) / 3);
   int16_t hue = (int16_t)A.hueBase;
-  hue += (int16_t)(((int)overlap - 128) / 4);
-  if (intensity > 160) hue += (int16_t)(((int)overlap - 128) / 3);
+  // Reduced hue shift factors for more gradual color transitions
+  hue += (int16_t)(((int)overlap - 128) / 8);  // Was /4
+  if (intensity > 160) hue += (int16_t)(((int)overlap - 128) / 6);  // Was /3
 
   uint8_t sat = (uint8_t)constrain(190 + (int)overlap/3, 160, 255);
 
@@ -1233,7 +1240,8 @@ static inline CRGB auroraSample(uint8_t z, uint16_t iGlobal, uint8_t intensity){
     uint8_t h8 = (uint8_t)hue;
     uint8_t amtI = scale8(intensity, 200);
     uint8_t amtO = scale8(overlap,   220);
-    uint8_t amt  = scale8(qadd8(amtI, 40), amtO);
+    // Reduced hue lerp amount for more gradual color shifts
+    uint8_t amt  = scale8(qadd8(amtI, 40), amtO) >> 1;  // Halved for gentler transitions
     h8 = lerp8by8(h8, 210, amt);
     hue = h8;
   }
@@ -1266,7 +1274,8 @@ static inline uint8_t auroraHolesMask(uint8_t z, uint16_t iGlobal){
   uint8_t a1 = curtainProfile(p1);
   uint8_t a2 = curtainProfile(p2);
 
-  const float holeStrength = 0.70f;
+  // Reduced hole strength for less drastic dark areas (more gentle shadows)
+  const float holeStrength = 0.45f;
   uint16_t hole = (uint16_t)((255 - a0) * (255 - a1) / 255);
   hole = (uint16_t)(hole * (255 - a2) / 255);
   uint16_t scaled = 255 - (uint16_t)(hole * holeStrength);
@@ -1330,6 +1339,21 @@ static void auroraUpdateAndOverlay() {
     leds[i].r = qadd8(leds[i].r, smoothed.r);
     leds[i].g = qadd8(leds[i].g, smoothed.g);
     leds[i].b = qadd8(leds[i].b, smoothed.b);
+  }
+
+  // Ring-aware edge blending: smooth transition between LED 0 and LED 15
+  // (they are adjacent on the physical ring, so blend their colors)
+  // Zone 0 (outer ring) spans LEDs 0-15; check if zone config matches expected layout
+  if (zones[0].endLed >= 15 && zones[0].startLed == 0) {
+    CRGB led0 = leds[0];
+    CRGB led15 = leds[15];
+    // Blend the two ring-adjacent edge LEDs toward each other
+    leds[0].r = lerp8by8(led0.r, led15.r, AURORA_RING_BLEND_AMT);
+    leds[0].g = lerp8by8(led0.g, led15.g, AURORA_RING_BLEND_AMT);
+    leds[0].b = lerp8by8(led0.b, led15.b, AURORA_RING_BLEND_AMT);
+    leds[15].r = lerp8by8(led15.r, led0.r, AURORA_RING_BLEND_AMT);
+    leds[15].g = lerp8by8(led15.g, led0.g, AURORA_RING_BLEND_AMT);
+    leds[15].b = lerp8by8(led15.b, led0.b, AURORA_RING_BLEND_AMT);
   }
 }
 
