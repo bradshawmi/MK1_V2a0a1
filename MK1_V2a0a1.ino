@@ -68,8 +68,8 @@ static AuroraState gAurora[3] = {0};
 // Reduced from 0.08 to 0.03 for more gradual, nebulous aurora transitions
 static const float AURORA_SMOOTH_FACTOR = 0.03f;
 // Ring edge blend amount: blends LED 0 and LED 15 which are adjacent on the physical ring
-// Value of 64 = 25% blend to reduce visible seam without losing all variation
-static const uint8_t AURORA_RING_BLEND_AMT = 64;
+// Increased from 64 to 128 (50% blend) for smoother ring seam
+static const uint8_t AURORA_RING_BLEND_AMT = 128;
 
 #include <Arduino.h>
 #include <pgmspace.h>
@@ -1151,17 +1151,24 @@ static inline void auroraUpdate(uint8_t z, uint16_t speed){
   float hueRate = mapAuroraRate(0.03f, 0.60f, speed);
   float pulsHz  = mapAuroraRate(0.10f, 0.40f, speed);
 
-  float hueAdd = hueRate * (float)dt * 0.001f;
-  uint8_t add8 = (uint8_t)(hueAdd + 0.5f);
-  A.hueBase += add8;
-
+  // Use sine wave for bidirectional hue oscillation (flows back and forth like northern lights)
+  // The pulsPhase provides the oscillation timing
   uint32_t addP = (uint32_t)(pulsHz * (float)dt * 0.001f * 65536.0f + 0.5f);
   A.pulsPhase += (uint16_t)addP;
+  
+  // Oscillating hue: base hue shifts using sine wave for back-and-forth motion
+  // sin16 returns -32768 to 32767, scale to ±hueRange for gentle oscillation
+  int16_t hueOscillation = (int16_t)(sin16(A.pulsPhase) >> 9);  // ±64 hue range
+  // Also add a slower secondary oscillation for more organic variation
+  int16_t hueOscillation2 = (int16_t)(sin16(A.pulsPhase * 3 / 7) >> 10);  // ±32, different frequency
+  A.hueBase = (uint8_t)(96 + hueOscillation + hueOscillation2);  // Base green-ish aurora hue with oscillation
 
+  // Phase advancement with mixed directions for more organic motion
   auto adv = [](uint16_t ph, float hz, uint32_t dtMs)->uint16_t{
     uint32_t add = (uint32_t)(hz * (float)dtMs * 0.001f * 65536.0f + 0.5f);
     return (uint16_t)(ph + add);
   };
+  // Use different rates - some positive, some negative (via subtraction)
   float a0 = mapAuroraRate(0.020f, 0.120f, speed);
   float b0 = mapAuroraRate(0.015f, 0.090f, speed);
   float a1 = mapAuroraRate(0.018f, 0.105f, speed*0.95f);
@@ -1169,10 +1176,13 @@ static inline void auroraUpdate(uint8_t z, uint16_t speed){
   float a2 = mapAuroraRate(0.024f, 0.140f, speed*1.05f);
   float b2 = mapAuroraRate(0.020f, 0.110f, speed*1.02f);
 
+  // Layer 0: forward motion
   A.layers[0].phaseA = adv(A.layers[0].phaseA, a0, dt);
   A.layers[0].phaseB = adv(A.layers[0].phaseB, b0, dt);
-  A.layers[1].phaseA = adv(A.layers[1].phaseA, a1, dt);
-  A.layers[1].phaseB = adv(A.layers[1].phaseB, b1, dt);
+  // Layer 1: backward motion (creates counter-flow effect)
+  A.layers[1].phaseA = (uint16_t)(A.layers[1].phaseA - (uint16_t)(a1 * (float)dt * 0.001f * 65536.0f));
+  A.layers[1].phaseB = (uint16_t)(A.layers[1].phaseB - (uint16_t)(b1 * (float)dt * 0.001f * 65536.0f));
+  // Layer 2: forward motion at different rate
   A.layers[2].phaseA = adv(A.layers[2].phaseA, a2, dt);
   A.layers[2].phaseB = adv(A.layers[2].phaseB, b2, dt);
 
@@ -1345,15 +1355,30 @@ static void auroraUpdateAndOverlay() {
   // (they are adjacent on the physical ring, so blend their colors)
   // Zone 0 (outer ring) spans LEDs 0-15; check if zone config matches expected layout
   if (zones[0].endLed >= 15 && zones[0].startLed == 0) {
+    // Extended ring seam blending: blend multiple LEDs near the seam for smoother transition
+    // LED 0 and 15 are physically adjacent, so we blend them strongly
+    // Also blend LEDs 1 and 14 with reduced amount for gradual falloff
     CRGB led0 = leds[0];
+    CRGB led1 = leds[1];
+    CRGB led14 = leds[14];
     CRGB led15 = leds[15];
-    // Blend the two ring-adjacent edge LEDs toward each other
+    
+    // Strong blend for edge LEDs (0 and 15)
     leds[0].r = lerp8by8(led0.r, led15.r, AURORA_RING_BLEND_AMT);
     leds[0].g = lerp8by8(led0.g, led15.g, AURORA_RING_BLEND_AMT);
     leds[0].b = lerp8by8(led0.b, led15.b, AURORA_RING_BLEND_AMT);
     leds[15].r = lerp8by8(led15.r, led0.r, AURORA_RING_BLEND_AMT);
     leds[15].g = lerp8by8(led15.g, led0.g, AURORA_RING_BLEND_AMT);
     leds[15].b = lerp8by8(led15.b, led0.b, AURORA_RING_BLEND_AMT);
+    
+    // Lighter blend for adjacent LEDs (1 and 14) - half the blend amount
+    uint8_t halfBlend = AURORA_RING_BLEND_AMT >> 1;
+    leds[1].r = lerp8by8(led1.r, led14.r, halfBlend);
+    leds[1].g = lerp8by8(led1.g, led14.g, halfBlend);
+    leds[1].b = lerp8by8(led1.b, led14.b, halfBlend);
+    leds[14].r = lerp8by8(led14.r, led1.r, halfBlend);
+    leds[14].g = lerp8by8(led14.g, led1.g, halfBlend);
+    leds[14].b = lerp8by8(led14.b, led1.b, halfBlend);
   }
 }
 
