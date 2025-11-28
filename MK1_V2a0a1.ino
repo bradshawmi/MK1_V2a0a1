@@ -63,11 +63,9 @@ struct RingCoord {
 
 static AuroraState gAurora[3] = {0};
 
-// Aurora temporal smoothing buffers
+// Aurora temporal smoothing constant
 // Exponential smoothing factor: lower = slower/smoother transitions (0.05-0.15 recommended)
 static const float AURORA_SMOOTH_FACTOR = 0.08f;
-static CRGB gAuroraPrev[NUM_LEDS];
-static bool gAuroraPrevInit = false;
 
 #include <Arduino.h>
 #include <pgmspace.h>
@@ -456,6 +454,9 @@ static CRGB leds[NUM_LEDS];
 static uint8_t osGlow[NUM_LEDS] = {0};
 static RingCoord gRingLUT[NUM_LEDS];
 static bool      gRingLUTInited = false;
+// Aurora temporal smoothing buffers (declared after NUM_LEDS is defined)
+static CRGB gAuroraPrev[NUM_LEDS];
+static bool gAuroraPrevInit = false;
 static WebServer server(80);
 static DNSServer dnsServer;
 static const byte DNS_PORT = 53;
