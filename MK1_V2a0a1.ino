@@ -28,6 +28,7 @@ struct AuroraLayer {
   uint16_t phaseA;
   uint16_t phaseB;
   uint16_t width;
+  uint16_t targetWidth;  // Target for smooth width interpolation
 };
 
 struct AuroraState {
@@ -61,6 +62,13 @@ struct RingCoord {
 };
 
 static AuroraState gAurora[3] = {0};
+
+// Aurora temporal smoothing buffers
+// Exponential smoothing factor: lower = slower/smoother transitions (0.05-0.15 recommended)
+static const float AURORA_SMOOTH_FACTOR = 0.08f;
+static CRGB gAuroraPrev[NUM_LEDS];
+static bool gAuroraPrevInit = false;
+
 #include <Arduino.h>
 #include <pgmspace.h>
 #include <WiFi.h>
@@ -1101,9 +1109,14 @@ static inline float mapAuroraRate(float minv, float maxv, uint16_t speed){
 }
 
 static inline uint8_t curtainProfile(uint16_t phase){
+  // Gentler cosine profile for smooth aurora transitions
+  // Using sqrt of squared value reduces harshness while maintaining shape
   int16_t c = cos16(phase);
   uint16_t u = (uint16_t)((c + 32768) >> 8);
-  return (uint8_t)((u * u) >> 8);
+  // Apply gentler power curve (approximately x^1.3 via blend)
+  uint16_t squared = (u * u) >> 8;
+  // Blend between linear and squared for softer falloff
+  return (uint8_t)((u + squared) >> 1);
 }
 
 static inline uint16_t auroraRand(uint16_t &seed){
@@ -1118,9 +1131,9 @@ static inline void auroraEnsureInit(uint8_t z){
   A.hueBase = 96;
   A.zoneOffset = (uint16_t)(z * (65536u / 3u));
   A.seed = (uint16_t)(0xC0DEu + 97u*z);
-  A.layers[0] = { (uint16_t)auroraRand(A.seed), (uint16_t)auroraRand(A.seed),  900 };
-  A.layers[1] = { (uint16_t)auroraRand(A.seed), (uint16_t)auroraRand(A.seed), 1150 };
-  A.layers[2] = { (uint16_t)auroraRand(A.seed), (uint16_t)auroraRand(A.seed),  700 };
+  A.layers[0] = { (uint16_t)auroraRand(A.seed), (uint16_t)auroraRand(A.seed),  900,  900 };
+  A.layers[1] = { (uint16_t)auroraRand(A.seed), (uint16_t)auroraRand(A.seed), 1150, 1150 };
+  A.layers[2] = { (uint16_t)auroraRand(A.seed), (uint16_t)auroraRand(A.seed),  700,  700 };
 }
 
 static inline void auroraUpdate(uint8_t z, uint16_t speed){
@@ -1158,13 +1171,26 @@ static inline void auroraUpdate(uint8_t z, uint16_t speed){
   A.layers[2].phaseA = adv(A.layers[2].phaseA, a2, dt);
   A.layers[2].phaseB = adv(A.layers[2].phaseB, b2, dt);
 
+  // Occasionally set new target widths (gradual change instead of abrupt)
   if ((auroraRand(A.seed) & 0x7FF) == 0){
     uint8_t k = (uint8_t)(A.seed % 3);
     int d = (A.seed & 1) ? -90 : +90;
+    // Calculate new target from current width (not targetWidth) to prevent drift
     int newW = (int)A.layers[k].width + d;
     if (newW < 560) newW = 560;
     if (newW > 1400) newW = 1400;
-    A.layers[k].width = (uint16_t)newW;
+    A.layers[k].targetWidth = (uint16_t)newW;
+  }
+
+  // Smoothly interpolate current widths toward target widths
+  // Width interpolation factor (~0.02 for slow, smooth width changes)
+  const float WIDTH_LERP_FACTOR = 0.02f;
+  for (uint8_t k = 0; k < 3; ++k) {
+    int16_t diff = (int16_t)A.layers[k].targetWidth - (int16_t)A.layers[k].width;
+    int16_t step = (int16_t)(diff * WIDTH_LERP_FACTOR);
+    // Prevent stalling when float multiplication truncates to 0
+    if (diff != 0 && step == 0) step = (diff > 0) ? 1 : -1;
+    A.layers[k].width = (uint16_t)((int16_t)A.layers[k].width + step);
   }
 }
 
@@ -1227,9 +1253,12 @@ static inline uint8_t auroraHolesMask(uint8_t z, uint16_t iGlobal){
   uint16_t p2 = (uint16_t)(A.layers[2].phaseA + (uint16_t)((uint32_t)A.layers[2].phaseB * 143u/256u) + A.zoneOffset + (uint16_t)(iLocal * A.layers[2].width));
 
   auto curtainProfile = [](uint16_t phase)->uint8_t{
+    // Gentler cosine profile for smooth aurora transitions
     int16_t c = cos16(phase);
     uint16_t u = (uint16_t)((c + 32768) >> 8);
-    return (uint8_t)((u * u) >> 8);
+    uint16_t squared = (u * u) >> 8;
+    // Blend between linear and squared for softer falloff
+    return (uint8_t)((u + squared) >> 1);
   };
 
   uint8_t a0 = curtainProfile(p0);
@@ -1256,6 +1285,14 @@ static void auroraUpdateAndOverlay() {
 
   for (uint8_t z = 0; z < 3; ++z) auroraUpdate(z, speed);
 
+  // Initialize smoothing buffer on first use
+  if (!gAuroraPrevInit) {
+    for (uint16_t i = 0; i < NUM_LEDS; ++i) {
+      gAuroraPrev[i] = CRGB::Black;
+    }
+    gAuroraPrevInit = true;
+  }
+
   for (uint16_t i = 0; i < NUM_LEDS; ++i) {
     uint8_t z = 0;
     if (i >= zones[1].startLed) z = (i <= zones[1].endLed ? 1 : (i >= zones[2].startLed ? 2 : 0));
@@ -1263,10 +1300,35 @@ static void auroraUpdateAndOverlay() {
     const uint8_t holes = auroraHolesMask(z, i);
     leds[i].nscale8_video(holes);
 
-    CRGB a = auroraSample(z, i, inten);
-    leds[i].r = qadd8(leds[i].r, a.r);
-    leds[i].g = qadd8(leds[i].g, a.g);
-    leds[i].b = qadd8(leds[i].b, a.b);
+    // Calculate target aurora color
+    CRGB target = auroraSample(z, i, inten);
+
+    // Apply exponential smoothing for gradual color/brightness transitions
+    // smoothed = prev + (target - prev) * smoothFactor
+    int16_t dr = (int16_t)target.r - (int16_t)gAuroraPrev[i].r;
+    int16_t dg = (int16_t)target.g - (int16_t)gAuroraPrev[i].g;
+    int16_t db = (int16_t)target.b - (int16_t)gAuroraPrev[i].b;
+
+    // Calculate step with minimum movement to prevent stalling when float truncates to 0
+    int16_t stepR = (int16_t)(dr * AURORA_SMOOTH_FACTOR);
+    int16_t stepG = (int16_t)(dg * AURORA_SMOOTH_FACTOR);
+    int16_t stepB = (int16_t)(db * AURORA_SMOOTH_FACTOR);
+    if (dr != 0 && stepR == 0) stepR = (dr > 0) ? 1 : -1;
+    if (dg != 0 && stepG == 0) stepG = (dg > 0) ? 1 : -1;
+    if (db != 0 && stepB == 0) stepB = (db > 0) ? 1 : -1;
+
+    CRGB smoothed;
+    smoothed.r = (uint8_t)((int16_t)gAuroraPrev[i].r + stepR);
+    smoothed.g = (uint8_t)((int16_t)gAuroraPrev[i].g + stepG);
+    smoothed.b = (uint8_t)((int16_t)gAuroraPrev[i].b + stepB);
+
+    // Store smoothed value for next frame
+    gAuroraPrev[i] = smoothed;
+
+    // Add smoothed aurora color to LED
+    leds[i].r = qadd8(leds[i].r, smoothed.r);
+    leds[i].g = qadd8(leds[i].g, smoothed.g);
+    leds[i].b = qadd8(leds[i].b, smoothed.b);
   }
 }
 
