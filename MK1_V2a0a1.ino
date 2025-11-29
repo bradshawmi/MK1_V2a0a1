@@ -1151,24 +1151,20 @@ static inline void auroraUpdate(uint8_t z, uint16_t speed){
   float hueRate = mapAuroraRate(0.03f, 0.60f, speed);
   float pulsHz  = mapAuroraRate(0.10f, 0.40f, speed);
 
-  // Use sine wave for bidirectional hue oscillation (flows back and forth like northern lights)
-  // The pulsPhase provides the oscillation timing
+  // Gradual hue increment (original behavior) - creates slow color drift
+  float hueAdd = hueRate * (float)dt * 0.001f;
+  uint8_t add8 = (uint8_t)(hueAdd + 0.5f);
+  A.hueBase += add8;
+
+  // Update pulse phase for brightness modulation
   uint32_t addP = (uint32_t)(pulsHz * (float)dt * 0.001f * 65536.0f + 0.5f);
   A.pulsPhase += (uint16_t)addP;
-  
-  // Oscillating hue: base hue shifts using sine wave for back-and-forth motion
-  // sin16 returns -32768 to 32767, scale to ±hueRange for gentle oscillation
-  int16_t hueOscillation = (int16_t)(sin16(A.pulsPhase) >> 9);  // ±64 hue range
-  // Also add a slower secondary oscillation for more organic variation
-  int16_t hueOscillation2 = (int16_t)(sin16(A.pulsPhase * 3 / 7) >> 10);  // ±32, different frequency
-  A.hueBase = (uint8_t)(96 + hueOscillation + hueOscillation2);  // Base green-ish aurora hue with oscillation
 
-  // Phase advancement with mixed directions for more organic motion
+  // Phase advancement for layer movement
   auto adv = [](uint16_t ph, float hz, uint32_t dtMs)->uint16_t{
     uint32_t add = (uint32_t)(hz * (float)dtMs * 0.001f * 65536.0f + 0.5f);
     return (uint16_t)(ph + add);
   };
-  // Use different rates - some positive, some negative (via subtraction)
   float a0 = mapAuroraRate(0.020f, 0.120f, speed);
   float b0 = mapAuroraRate(0.015f, 0.090f, speed);
   float a1 = mapAuroraRate(0.018f, 0.105f, speed*0.95f);
@@ -1176,13 +1172,11 @@ static inline void auroraUpdate(uint8_t z, uint16_t speed){
   float a2 = mapAuroraRate(0.024f, 0.140f, speed*1.05f);
   float b2 = mapAuroraRate(0.020f, 0.110f, speed*1.02f);
 
-  // Layer 0: forward motion
+  // All layers advance forward at different rates (creates variation)
   A.layers[0].phaseA = adv(A.layers[0].phaseA, a0, dt);
   A.layers[0].phaseB = adv(A.layers[0].phaseB, b0, dt);
-  // Layer 1: backward motion (creates counter-flow effect)
-  A.layers[1].phaseA = (uint16_t)(A.layers[1].phaseA - (uint16_t)(a1 * (float)dt * 0.001f * 65536.0f));
-  A.layers[1].phaseB = (uint16_t)(A.layers[1].phaseB - (uint16_t)(b1 * (float)dt * 0.001f * 65536.0f));
-  // Layer 2: forward motion at different rate
+  A.layers[1].phaseA = adv(A.layers[1].phaseA, a1, dt);
+  A.layers[1].phaseB = adv(A.layers[1].phaseB, b1, dt);
   A.layers[2].phaseA = adv(A.layers[2].phaseA, a2, dt);
   A.layers[2].phaseB = adv(A.layers[2].phaseB, b2, dt);
 
@@ -1226,8 +1220,8 @@ static inline CRGB auroraSample(uint8_t z, uint16_t iGlobal, uint8_t intensity){
 
   uint8_t mx = max(a0, max(a1, a2));
 
-  // Reduced hole strength for less drastic dark areas (more gentle shadows)
-  const float holeStrength = 0.45f;
+  // Original hole strength for visible shadow effects
+  const float holeStrength = 0.70f;
   uint16_t hole = (uint16_t)((255 - a0) * (255 - a1) / 255);
   hole = (uint16_t)(hole * (255 - a2) / 255);
   uint8_t holes = (uint8_t)(255 - (uint16_t)(hole * holeStrength / 1.0f));
@@ -1239,9 +1233,9 @@ static inline CRGB auroraSample(uint8_t z, uint16_t iGlobal, uint8_t intensity){
   uint8_t v = (uint8_t)constrain( (int)( (uint16_t)baseV * holes / 255 ), 0, 255 );
   uint8_t overlap = (uint8_t)(( (uint16_t)min(a0,a1) + (uint16_t)min(a1,a2) + (uint16_t)min(a0,a2) ) / 3);
   int16_t hue = (int16_t)A.hueBase;
-  // Reduced hue shift factors for more gradual color transitions
-  hue += (int16_t)(((int)overlap - 128) / 8);  // Was /4
-  if (intensity > 160) hue += (int16_t)(((int)overlap - 128) / 6);  // Was /3
+  // Original hue shift factors for per-LED color variation
+  hue += (int16_t)(((int)overlap - 128) / 4);
+  if (intensity > 160) hue += (int16_t)(((int)overlap - 128) / 3);
 
   uint8_t sat = (uint8_t)constrain(190 + (int)overlap/3, 160, 255);
 
@@ -1250,8 +1244,8 @@ static inline CRGB auroraSample(uint8_t z, uint16_t iGlobal, uint8_t intensity){
     uint8_t h8 = (uint8_t)hue;
     uint8_t amtI = scale8(intensity, 200);
     uint8_t amtO = scale8(overlap,   220);
-    // Reduced hue lerp amount for more gradual color shifts
-    uint8_t amt  = scale8(qadd8(amtI, 40), amtO) >> 1;  // Halved for gentler transitions
+    // Original hue lerp amount for per-LED color variation
+    uint8_t amt  = scale8(qadd8(amtI, 40), amtO);
     h8 = lerp8by8(h8, 210, amt);
     hue = h8;
   }
@@ -1284,8 +1278,8 @@ static inline uint8_t auroraHolesMask(uint8_t z, uint16_t iGlobal){
   uint8_t a1 = curtainProfile(p1);
   uint8_t a2 = curtainProfile(p2);
 
-  // Reduced hole strength for less drastic dark areas (more gentle shadows)
-  const float holeStrength = 0.45f;
+  // Original hole strength for visible shadow effects
+  const float holeStrength = 0.70f;
   uint16_t hole = (uint16_t)((255 - a0) * (255 - a1) / 255);
   hole = (uint16_t)(hole * (255 - a2) / 255);
   uint16_t scaled = 255 - (uint16_t)(hole * holeStrength);
