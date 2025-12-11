@@ -105,8 +105,18 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
   <summary class="section-title">Wi-Fi</summary>
   <div style="margin-top:10px">
     <div class="small" style="margin-bottom:10px; color:#000">
-      <strong>Status:</strong> <span id="wifiStatus">AP Mode</span><br>
-      <strong>IP Address:</strong> <span id="wifiIP">192.168.4.1</span>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:center;">
+        <div>
+          <strong>Status:</strong> <span id="wifiStatus">AP Mode</span><br>
+          <strong>IP Address:</strong> <span id="wifiIP">192.168.4.1</span>
+        </div>
+        <div style="text-align:right;">
+          <label style="display:inline-flex;align-items:center;gap:8px;margin:0;">
+            <input type="checkbox" id="wifiIdleAutoOff">
+            <span id="wifiIdleLabel">Wi‑Fi idle timer ON</span>
+          </label>
+        </div>
+      </div>
     </div>
     
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px">
@@ -150,12 +160,6 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
     </label>
     <input type="text" id="simVbatText" value="3.60" style="width:40px; height:24px; text-align:center;">
     <input type="range" id="simVbat" min="3.5" max="3.8" step="0.01" value="3.60" style="flex:1;">
-  </div>
-    <div class="row" style="align-items:center; gap:12px;">
-    <label style="display:flex;align-items:center;gap:8px;margin:0; width:140px; flex:0 0 140px">
-      <input type="checkbox" id="wifiIdleAutoOff">
-      <span id="wifiIdleLabel">Wi‑Fi idle timer ON</span>
-    </label>
   </div>
     <div class="cardNote" id="simNote" style="display:none"></div>
     <div class="cardNote" id="mbNote">
