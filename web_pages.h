@@ -106,7 +106,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
     <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
       <span>Wi-Fi</span>
       <span class="small" style="color:#000; margin-right:10px;">
-        <label style="display:inline-flex;align-items:center;gap:8px;margin:0;font-weight:normal;" onclick="event.stopPropagation();">
+        <label style="display:inline-flex;align-items:center;gap:8px;margin:0;" onclick="event.stopPropagation();">
           <input type="checkbox" id="wifiIdleAutoOff" onclick="event.stopPropagation();">
           <span id="wifiIdleLabel">Wi‑Fi idle timer OFF</span>
         </label>
