@@ -102,7 +102,15 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
 </div>
 
 <details class="card">
-  <summary class="section-title">Wi-Fi</summary>
+  <summary class="section-title">
+    <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+      <span>Wi-Fi</span>
+      <label style="display:inline-flex;align-items:center;gap:8px;margin:0;font-size:0.95rem;font-weight:normal;" onclick="event.stopPropagation();">
+        <input type="checkbox" id="wifiIdleAutoOff" onclick="event.stopPropagation();">
+        <span id="wifiIdleLabel" style="color:#000;">Wi‑Fi idle timer OFF</span>
+      </label>
+    </div>
+  </summary>
   <div style="margin-top:10px">
     <div class="small" style="margin-bottom:10px; color:#000">
       <strong>Status:</strong> <span id="wifiStatus">AP Mode</span><br>
@@ -151,12 +159,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
     <input type="text" id="simVbatText" value="3.60" style="width:40px; height:24px; text-align:center;">
     <input type="range" id="simVbat" min="3.5" max="3.8" step="0.01" value="3.60" style="flex:1;">
   </div>
-    <div class="row" style="align-items:center; gap:12px;">
-    <label style="display:flex;align-items:center;gap:8px;margin:0; width:140px; flex:0 0 140px">
-      <input type="checkbox" id="wifiIdleAutoOff">
-      <span id="wifiIdleLabel">Wi‑Fi idle timer ON</span>
-    </label>
-  </div>
+
     <div class="cardNote" id="simNote" style="display:none"></div>
     <div class="cardNote" id="mbNote">
       PUSHBUTTON: (Short-tap→Restore Wi-Fi)<br>(Long-press→Sleep/Wake) (Double-tap→Next preset).
