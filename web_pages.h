@@ -90,7 +90,7 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
 /* Master Brightness layout tuning */
 #dfThreshText, #simVbatText { width:40px !important; text-align:center;  height:30px; height:24px;}
 
-#wifiIdleLabel{ white-space:nowrap; font-size:0.95rem; color:#000; }
+#wifiIdleLabel{ white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -105,10 +105,12 @@ static const char INDEX_HTML[] PROGMEM = R"HTML(<!doctype html>
   <summary class="section-title">
     <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
       <span>Wi-Fi</span>
-      <label style="display:inline-flex;align-items:center;gap:8px;margin:0;font-weight:normal;" onclick="event.stopPropagation();">
-        <input type="checkbox" id="wifiIdleAutoOff" onclick="event.stopPropagation();">
-        <span id="wifiIdleLabel">Wi‑Fi idle timer OFF</span>
-      </label>
+      <span class="small" style="color:#000; margin-right:10px;">
+        <label style="display:inline-flex;align-items:center;gap:8px;margin:0;font-weight:normal;" onclick="event.stopPropagation();">
+          <input type="checkbox" id="wifiIdleAutoOff" onclick="event.stopPropagation();">
+          <span id="wifiIdleLabel">Wi‑Fi idle timer OFF</span>
+        </label>
+      </span>
     </div>
   </summary>
   <div style="margin-top:10px">
